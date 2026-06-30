@@ -1,0 +1,13 @@
+spring:
+  jpa:
+    properties:
+      hibernate:
+        format_sql: true
+logging:
+  level:
+    org.hibernate.SQL: debug
+    org.flywaydb: info
+
+padel:
+  jwt:
+    secret: padel-dev-secret-change-me-please-min-32-chars-aaaa

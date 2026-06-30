@@ -1,0 +1,9 @@
+# Perfil de tests de integración (@ActiveProfiles("test")). Sólo overrides; el resto se hereda de
+# application.yml. Todas las clases IT comparten una sola DB (singleton container), así que los
+# límites anti-abuso se suben para que las reservas de un test no afecten a las de otro (misma IP).
+padel:
+  antiabuse:
+    max-turnos-por-telefono: 1000
+    ip:
+      max-por-ventana: 1000
+      ventana: PT1H
