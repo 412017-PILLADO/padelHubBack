@@ -18,9 +18,9 @@ import org.example.padelback.modules.reservas.domain.model.disponibilidad.SlotDi
 import org.junit.jupiter.api.Test;
 
 /**
- * Tests del cálculo de disponibilidad de duración variable (función pura, sin Spring).
- * Es el caso de oro del dominio: el "pulido" central del port era generalizar el algoritmo de
- * barber (slot fijo) a inicios cada {@code paso} con ventana {@code duracion}.
+ * Tests del cálculo de disponibilidad de turnos contiguos con duración variable (función pura, sin
+ * Spring). Es el caso de oro del dominio: los inicios se encadenan de a {@code duracion} desde la
+ * apertura (uno sale, entra el siguiente); el {@code paso} del complejo ya no influye.
  */
 class AvailabilityServiceTest {
 
@@ -62,21 +62,28 @@ class AvailabilityServiceTest {
     }
 
     @Test
-    void duracion120_ultimoInicioEsLas21() {
+    void duracion120_encadenaCada120YElCierreDejaRestoLibre() {
         var slots = service.calcular(
                 agenda(30, List.of(new AgendaCancha(cancha(1, "C1"), List.of()))), 120, MEDIANOCHE);
 
-        assertThat(ultimaHora(slots)).isEqualTo(LocalTime.of(21, 0));
+        // 08:00 → 10:00 → … → 20:00 (último que entra entero); 22:00-23:00 queda sin turno.
+        assertThat(slots.get(0).hora()).isEqualTo(LocalTime.of(8, 0));
+        assertThat(slots).hasSize(7);
+        assertThat(ultimaHora(slots)).isEqualTo(LocalTime.of(20, 0));
     }
 
     @Test
-    void pasoDefineLaGranularidadDeInicios() {
-        var slots = service.calcular(
-                agenda(60, List.of(new AgendaCancha(cancha(1, "C1"), List.of()))), 60, MEDIANOCHE);
+    void elPasoYaNoAfectaLaGranularidad_losIniciosVanCadaDuracion() {
+        var conPaso30 = service.calcular(
+                agenda(30, List.of(new AgendaCancha(cancha(1, "C1"), List.of()))), 60, MEDIANOCHE);
+        var conPaso90 = service.calcular(
+                agenda(90, List.of(new AgendaCancha(cancha(1, "C1"), List.of()))), 60, MEDIANOCHE);
 
-        // paso 60 → inicios 08:00, 09:00, … 22:00 = 15 slots
-        assertThat(slots).hasSize(15);
-        assertThat(slots.get(1).hora()).isEqualTo(LocalTime.of(9, 0));
+        // Con duración 60 los inicios se encadenan cada 60 (08:00, 09:00 … 22:00 = 15), sin importar el paso.
+        assertThat(conPaso30).hasSize(15);
+        assertThat(conPaso30.get(1).hora()).isEqualTo(LocalTime.of(9, 0));
+        assertThat(conPaso30.stream().map(SlotDisponibilidad::hora).toList())
+                .isEqualTo(conPaso90.stream().map(SlotDisponibilidad::hora).toList());
     }
 
     @Test
@@ -86,9 +93,9 @@ class AvailabilityServiceTest {
         var slots = service.calcular(
                 agenda(30, List.of(new AgendaCancha(cancha(1, "C1"), List.of(ocupacion)))), 60, MEDIANOCHE);
 
-        // 10:00 y 10:30 solapan [10:00,11:00) → no disponibles; 09:00 y 11:00 sí.
+        // Inicios encadenados cada 60 (08:00, 09:00 …): el de las 10:00 solapa [10:00,11:00) → no
+        // disponible; 09:00 (termina justo 10:00) y 11:00 (arranca justo al cerrar la reserva) sí.
         assertThat(slotAt(slots, LocalTime.of(10, 0)).disponible()).isFalse();
-        assertThat(slotAt(slots, LocalTime.of(10, 30)).disponible()).isFalse();
         assertThat(slotAt(slots, LocalTime.of(9, 0)).disponible()).isTrue();
         assertThat(slotAt(slots, LocalTime.of(11, 0)).disponible()).isTrue();
     }
