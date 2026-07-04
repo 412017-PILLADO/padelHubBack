@@ -47,7 +47,8 @@ class TurnosIT extends IntegrationTestBase {
     @Test
     void listadoUsaCamposHoraYFin() {
         String cliente = "Cliente HoraFin";
-        crearReserva("09:00", cliente);
+        // 09:30 / 11:00 son inicios válidos de la grilla anclada al turno principal de 90.
+        crearReserva("09:30", cliente);
 
         String body = turnos();
         assertThat(body).contains(cliente);
@@ -58,7 +59,7 @@ class TurnosIT extends IntegrationTestBase {
     @Test
     void cancelarSacaElTurnoDelListado() {
         String cliente = "Cliente Cancelable";
-        Long id = crearReserva("10:00", cliente);
+        Long id = crearReserva("11:00", cliente);
         assertThat(turnos()).contains(cliente);
 
         ResponseEntity<String> cancel = exchange(

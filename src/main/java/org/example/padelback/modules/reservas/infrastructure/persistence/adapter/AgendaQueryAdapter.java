@@ -1,5 +1,7 @@
 package org.example.padelback.modules.reservas.infrastructure.persistence.adapter;
 
+import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -10,7 +12,7 @@ import java.util.Optional;
 import org.example.padelback.domain.port.TenantProvider;
 import org.example.padelback.modules.reservas.domain.model.CanchaEstado;
 import org.example.padelback.modules.reservas.domain.model.ComplejoEstado;
-import org.example.padelback.modules.reservas.domain.model.ReservaEstado;
+import org.example.padelback.modules.reservas.domain.model.PrecioModo;
 import org.example.padelback.modules.reservas.domain.model.disponibilidad.AgendaCancha;
 import org.example.padelback.modules.reservas.domain.model.disponibilidad.AgendaDelDia;
 import org.example.padelback.modules.reservas.domain.model.disponibilidad.CanchaRef;
@@ -41,6 +43,7 @@ public class AgendaQueryAdapter implements AgendaQueryPort {
     private final HorarioComplejoJpaRepository horarioRepo;
     private final ReservaJpaRepository reservaRepo;
     private final BloqueoJpaRepository bloqueoRepo;
+    private final Clock clock;
 
     @Override
     @Transactional(readOnly = true)
@@ -69,7 +72,10 @@ public class AgendaQueryAdapter implements AgendaQueryPort {
             return Optional.empty();
         }
 
-        List<Integer> duraciones = parseDuraciones(complejo.getDuracionesPermitidas());
+        // Si el complejo no permite otras duraciones, la única reservable es el turno principal.
+        List<Integer> duraciones = complejo.isPermitirOtrasDuraciones()
+                ? parseDuraciones(complejo.getDuracionesPermitidas())
+                : List.of(complejo.getDuracionDefault());
 
         // Franjas de apertura (compartidas por todas las canchas) para el día de la semana.
         int diaSemana = fecha.getDayOfWeek().getValue() - 1; // MONDAY=1 -> 0 ... SUNDAY=7 -> 6
@@ -82,15 +88,15 @@ public class AgendaQueryAdapter implements AgendaQueryPort {
 
         if (canchas.isEmpty() || franjas.isEmpty()) {
             return Optional.of(new AgendaDelDia(fecha, complejo.getPasoMinutos(), duraciones,
-                    complejo.getDuracionDefault(), franjas, List.of()));
+                    complejo.getDuracionDefault(), complejo.isRequiereSena(), franjas, List.of()));
         }
 
         LocalDateTime desde = fecha.atStartOfDay();
         LocalDateTime hasta = fecha.plusDays(1).atStartOfDay();
 
-        List<ReservaJpaEntity> reservas = reservaRepo
-                .findByTenantIdAndComplejoIdAndEstadoAndActiveTrueAndInicioLessThanAndFinGreaterThan(
-                        tenantId, complejoId, ReservaEstado.CONFIRMADO, hasta, desde);
+        // Ocupan el slot las CONFIRMADAS y las PENDIENTE de seña todavía vigentes (expira_en > ahora).
+        List<ReservaJpaEntity> reservas = reservaRepo.ocupacionesVigentesDelComplejo(
+                tenantId, complejoId, LocalDateTime.now(clock), desde, hasta);
         List<BloqueoJpaEntity> bloqueos = bloqueoRepo
                 .findByTenantIdAndComplejoIdAndActiveTrueAndFechaHoraDesdeLessThanAndFechaHoraHastaGreaterThan(
                         tenantId, complejoId, hasta, desde);
@@ -105,12 +111,19 @@ public class AgendaQueryAdapter implements AgendaQueryPort {
                     .filter(b -> b.getCanchaId() == null || b.getCanchaId().equals(c.getId()))
                     .forEach(b -> ocupaciones.add(new Ocupacion(b.getFechaHoraDesde(), b.getFechaHoraHasta())));
             CanchaRef ref = new CanchaRef(c.getId(), c.getNombre(), c.getColor(), c.isTechada(),
-                    c.getTipoPared(), c.getPrecioHora());
+                    c.getTipoPared(), precioEfectivo(complejo, c));
             return new AgendaCancha(ref, ocupaciones);
         }).toList();
 
         return Optional.of(new AgendaDelDia(fecha, complejo.getPasoMinutos(), duraciones,
-                complejo.getDuracionDefault(), franjas, agendaCanchas));
+                complejo.getDuracionDefault(), complejo.isRequiereSena(), franjas, agendaCanchas));
+    }
+
+    /** Precio por hora aplicable a la cancha según el modo del complejo (GENERAL o POR_CANCHA). */
+    private static BigDecimal precioEfectivo(ComplejoJpaEntity complejo, CanchaJpaEntity cancha) {
+        return complejo.getPrecioModo() == PrecioModo.GENERAL
+                ? complejo.getPrecioHoraGeneral()
+                : cancha.getPrecioHora();
     }
 
     /** Parsea el CSV "60,90,120" a una lista de minutos, ignorando valores inválidos. */

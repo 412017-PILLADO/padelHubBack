@@ -11,6 +11,7 @@ import org.example.padelback.modules.reservas.domain.exception.ComplejoNoResuelt
 import org.example.padelback.modules.reservas.domain.exception.DuracionInvalidaException;
 import org.example.padelback.modules.reservas.domain.exception.LimiteReservasPorIpException;
 import org.example.padelback.modules.reservas.domain.exception.LimiteTurnosPorTelefonoException;
+import org.example.padelback.modules.reservas.domain.exception.SenaNoValidableException;
 import org.example.padelback.modules.reservas.domain.exception.SlotNoDisponibleException;
 import org.example.padelback.modules.reservas.domain.exception.SolicitudInvalidaException;
 import org.example.padelback.modules.reservas.domain.exception.TelefonoRequeridoException;
@@ -70,6 +71,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(SlotNoDisponibleException.class)
     public ResponseEntity<Map<String, String>> handleSlot(SlotNoDisponibleException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(SenaNoValidableException.class)
+    public ResponseEntity<Map<String, String>> handleSena(SenaNoValidableException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", ex.getMessage()));
     }
 

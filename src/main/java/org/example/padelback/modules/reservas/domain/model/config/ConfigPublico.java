@@ -11,6 +11,11 @@ public record ConfigPublico(
         int pasoMinutos,
         List<Integer> duracionesPermitidas,
         int duracionDefault,
+        boolean permitirOtrasDuraciones,
+        boolean requiereSena,
+        BigDecimal senaMonto,
+        String senaAlias,
+        boolean autoasignacion,
         List<CanchaInfo> canchas,
         List<HorarioInfo> horarios) {
 

@@ -18,6 +18,7 @@ import org.example.padelback.modules.reservas.domain.exception.SolicitudInvalida
 import org.example.padelback.modules.reservas.domain.exception.TelefonoRequeridoException;
 import org.example.padelback.modules.reservas.domain.model.disponibilidad.AgendaDelDia;
 import org.example.padelback.modules.reservas.domain.model.disponibilidad.CanchaLibre;
+import org.example.padelback.modules.reservas.domain.model.ReservaEstado;
 import org.example.padelback.modules.reservas.domain.model.disponibilidad.SlotDisponibilidad;
 import org.example.padelback.modules.reservas.domain.model.reserva.NuevaReserva;
 import org.example.padelback.modules.reservas.domain.model.reserva.ReservaCreada;
@@ -30,6 +31,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class CrearReservaUseCase {
+
+    /** Ventana fija que tiene el cliente para pagar la seña antes de que la reserva PENDIENTE venza. */
+    private static final int SENA_VENTANA_MINUTOS = 15;
 
     private final AgendaQueryPort agendaQueryPort;
     private final ReservaCommandPort reservaCommandPort;
@@ -98,9 +102,17 @@ public class CrearReservaUseCase {
 
         LocalDateTime inicio = LocalDateTime.of(fecha, hora);
         LocalDateTime fin = inicio.plusMinutes(duracionEfectiva);
+
+        // Si el complejo pide seña, la reserva nace PENDIENTE y retiene la cancha hasta que venza la
+        // ventana de pago; si no, se confirma directo. La validación de la seña la hace el panel.
+        ReservaEstado estado = agenda.requiereSena() ? ReservaEstado.PENDIENTE : ReservaEstado.CONFIRMADO;
+        LocalDateTime expiraEn = estado == ReservaEstado.PENDIENTE
+                ? ahora.plusMinutes(SENA_VENTANA_MINUTOS)
+                : null;
+
         NuevaReserva nueva = new NuevaReserva(
                 complejoResuelto, elegida.id(), inicio, fin, duracionEfectiva,
-                clienteNombre, clienteWhatsapp, clientIp);
+                clienteNombre, clienteWhatsapp, clientIp, estado, expiraEn);
 
         return reservaCommandPort.crearSiLibre(nueva);
     }
@@ -121,7 +133,7 @@ public class CrearReservaUseCase {
         }
         return libres.stream()
                 .min(Comparator
-                        .comparingInt((CanchaLibre c) -> reservaCommandPort.reservasConfirmadasEseDia(c.id(), fecha))
+                        .comparingInt((CanchaLibre c) -> reservaCommandPort.reservasQueOcupanEseDia(c.id(), fecha))
                         .thenComparing(CanchaLibre::id))
                 .orElseThrow();
     }

@@ -1,5 +1,6 @@
 package org.example.padelback.modules.reservas.infrastructure.persistence.adapter;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -8,6 +9,7 @@ import java.util.stream.Collectors;
 
 import org.example.padelback.domain.port.TenantProvider;
 import org.example.padelback.modules.reservas.domain.model.ReservaEstado;
+import org.example.padelback.modules.reservas.domain.model.turno.PendienteDeSena;
 import org.example.padelback.modules.reservas.domain.model.turno.TurnoDelDia;
 import org.example.padelback.modules.reservas.domain.port.TurnoQueryPort;
 import org.example.padelback.modules.reservas.infrastructure.persistence.entity.CanchaJpaEntity;
@@ -24,6 +26,7 @@ public class TurnoQueryAdapter implements TurnoQueryPort {
     private final TenantProvider tenantProvider;
     private final ReservaJpaRepository reservaRepo;
     private final CanchaJpaRepository canchaRepo;
+    private final Clock clock;
 
     @Override
     @Transactional(readOnly = true)
@@ -32,8 +35,7 @@ public class TurnoQueryAdapter implements TurnoQueryPort {
         LocalDateTime desde = fecha.atStartOfDay();
         LocalDateTime hasta = fecha.plusDays(1).atStartOfDay();
 
-        Map<Long, String> canchas = canchaRepo.findByTenantIdAndActiveTrue(tenantId).stream()
-                .collect(Collectors.toMap(CanchaJpaEntity::getId, CanchaJpaEntity::getNombre));
+        Map<Long, String> canchas = nombresDeCanchas(tenantId);
 
         return reservaRepo
                 .findByTenantIdAndEstadoAndActiveTrueAndInicioGreaterThanEqualAndInicioLessThanOrderByInicioAsc(
@@ -45,5 +47,27 @@ public class TurnoQueryAdapter implements TurnoQueryPort {
                         r.getDuracionMinutos(),
                         r.getEstado().name()))
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PendienteDeSena> pendientesDeSena() {
+        Long tenantId = tenantProvider.requireTenantId();
+        Map<Long, String> canchas = nombresDeCanchas(tenantId);
+
+        return reservaRepo
+                .findByTenantIdAndEstadoAndActiveTrueAndExpiraEnGreaterThanOrderByExpiraEnAsc(
+                        tenantId, ReservaEstado.PENDIENTE, LocalDateTime.now(clock))
+                .stream()
+                .map(r -> new PendienteDeSena(
+                        r.getId(), r.getInicio(), r.getFin(), r.getClienteNombre(), r.getClienteWhatsapp(),
+                        canchas.getOrDefault(r.getCanchaId(), "—"),
+                        r.getDuracionMinutos(), r.getExpiraEn()))
+                .toList();
+    }
+
+    private Map<Long, String> nombresDeCanchas(Long tenantId) {
+        return canchaRepo.findByTenantIdAndActiveTrue(tenantId).stream()
+                .collect(Collectors.toMap(CanchaJpaEntity::getId, CanchaJpaEntity::getNombre));
     }
 }

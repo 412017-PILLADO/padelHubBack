@@ -33,6 +33,6 @@ public class ReservaController {
                 req.clienteNombre(), req.clienteWhatsapp(), req.empresa(), ip);
         return new ReservaResponse(
                 creada.id(), creada.canchaId(), creada.canchaNombre(),
-                creada.inicio(), creada.fin(), creada.duracionMinutos(), "CONFIRMADO");
+                creada.inicio(), creada.fin(), creada.duracionMinutos(), creada.estado());
     }
 }

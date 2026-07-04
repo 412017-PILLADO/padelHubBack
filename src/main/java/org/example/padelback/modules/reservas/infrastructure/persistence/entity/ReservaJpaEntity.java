@@ -55,6 +55,14 @@ public class ReservaJpaEntity extends BaseJpaEntity {
     @Column(nullable = false, length = 20)
     private ReservaEstado estado;
 
+    /**
+     * Solo para reservas PENDIENTE (seña): momento en que dejan de retener la cancha. CONFIRMADO y
+     * CANCELADO lo llevan en null. Una reserva "ocupa" el slot si {@code expiraEn IS NULL} (confirmada)
+     * o {@code expiraEn > ahora} (pendiente todavía vigente).
+     */
+    @Column(name = "expira_en")
+    private LocalDateTime expiraEn;
+
     @Column(name = "ip", length = 45)
     private String ip;
 }

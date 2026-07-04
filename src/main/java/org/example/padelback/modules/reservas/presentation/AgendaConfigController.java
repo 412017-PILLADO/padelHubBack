@@ -4,16 +4,22 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.example.padelback.modules.reservas.application.ActualizarAutoasignacionUseCase;
 import org.example.padelback.modules.reservas.application.ActualizarContactoUseCase;
 import org.example.padelback.modules.reservas.application.ActualizarDuracionesUseCase;
+import org.example.padelback.modules.reservas.application.ActualizarPreciosUseCase;
+import org.example.padelback.modules.reservas.application.ActualizarSenaUseCase;
 import org.example.padelback.modules.reservas.application.CargarAgendaConfigUseCase;
 import org.example.padelback.modules.reservas.application.GestionBloqueosUseCase;
 import org.example.padelback.modules.reservas.application.GestionCanchasUseCase;
 import org.example.padelback.modules.reservas.application.GuardarHorariosUseCase;
 import org.example.padelback.modules.reservas.domain.model.config.AgendaConfig;
+import org.example.padelback.modules.reservas.presentation.dto.ActualizarAutoasignacionRequest;
 import org.example.padelback.modules.reservas.presentation.dto.ActualizarCanchaRequest;
 import org.example.padelback.modules.reservas.presentation.dto.ActualizarContactoRequest;
 import org.example.padelback.modules.reservas.presentation.dto.ActualizarDuracionesRequest;
+import org.example.padelback.modules.reservas.presentation.dto.ActualizarPreciosRequest;
+import org.example.padelback.modules.reservas.presentation.dto.ActualizarSenaRequest;
 import org.example.padelback.modules.reservas.presentation.dto.AgendaConfigResponse;
 import org.example.padelback.modules.reservas.presentation.dto.CrearBloqueoRequest;
 import org.example.padelback.modules.reservas.presentation.dto.CrearCanchaRequest;
@@ -43,6 +49,9 @@ public class AgendaConfigController {
     private final CargarAgendaConfigUseCase cargar;
     private final GuardarHorariosUseCase guardarHorarios;
     private final ActualizarDuracionesUseCase actualizarDuraciones;
+    private final ActualizarPreciosUseCase actualizarPrecios;
+    private final ActualizarSenaUseCase actualizarSena;
+    private final ActualizarAutoasignacionUseCase actualizarAutoasignacion;
     private final ActualizarContactoUseCase actualizarContacto;
     private final GestionBloqueosUseCase gestionBloqueos;
     private final GestionCanchasUseCase gestionCanchas;
@@ -64,7 +73,26 @@ public class AgendaConfigController {
 
     @PutMapping("/duraciones")
     public AgendaConfigResponse duraciones(@Valid @RequestBody ActualizarDuracionesRequest req) {
-        actualizarDuraciones.ejecutar(req.pasoMinutos(), req.duraciones(), req.duracionDefault());
+        actualizarDuraciones.ejecutar(req.pasoMinutos(), req.duraciones(), req.duracionDefault(),
+                req.permitirOtrasDuraciones());
+        return AgendaConfigResponse.from(cargar.ejecutar());
+    }
+
+    @PutMapping("/precios")
+    public AgendaConfigResponse precios(@Valid @RequestBody ActualizarPreciosRequest req) {
+        actualizarPrecios.ejecutar(req.precioModo(), req.precioHoraGeneral());
+        return AgendaConfigResponse.from(cargar.ejecutar());
+    }
+
+    @PutMapping("/sena")
+    public AgendaConfigResponse sena(@Valid @RequestBody ActualizarSenaRequest req) {
+        actualizarSena.ejecutar(req.requiereSena(), req.senaMonto(), req.senaAlias());
+        return AgendaConfigResponse.from(cargar.ejecutar());
+    }
+
+    @PutMapping("/autoasignacion")
+    public AgendaConfigResponse autoasignacion(@Valid @RequestBody ActualizarAutoasignacionRequest req) {
+        actualizarAutoasignacion.ejecutar(req.autoasignacion());
         return AgendaConfigResponse.from(cargar.ejecutar());
     }
 

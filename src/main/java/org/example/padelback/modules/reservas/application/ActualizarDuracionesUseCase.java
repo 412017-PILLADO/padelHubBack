@@ -12,7 +12,8 @@ public class ActualizarDuracionesUseCase {
 
     private final AgendaConfigCommandPort commandPort;
 
-    public void ejecutar(int pasoMinutos, List<Integer> duraciones, int duracionDefault) {
-        commandPort.actualizarDuraciones(pasoMinutos, duraciones, duracionDefault);
+    public void ejecutar(int pasoMinutos, List<Integer> duraciones, int duracionDefault,
+                         boolean permitirOtrasDuraciones) {
+        commandPort.actualizarDuraciones(pasoMinutos, duraciones, duracionDefault, permitirOtrasDuraciones);
     }
 }

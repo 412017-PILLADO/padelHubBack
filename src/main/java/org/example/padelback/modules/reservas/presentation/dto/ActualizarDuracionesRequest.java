@@ -9,4 +9,5 @@ import jakarta.validation.constraints.NotEmpty;
 public record ActualizarDuracionesRequest(
         @Min(5) @Max(120) int pasoMinutos,
         @NotEmpty List<Integer> duraciones,
-        int duracionDefault) {}
+        int duracionDefault,
+        boolean permitirOtrasDuraciones) {}

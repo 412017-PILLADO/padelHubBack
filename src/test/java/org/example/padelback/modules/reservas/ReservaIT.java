@@ -37,8 +37,9 @@ class ReservaIT extends IntegrationTestBase {
     @Test
     void happyPathCreaReserva() {
         String fecha = LocalDate.now().plusDays(3).toString();
+        // 09:30 es un inicio válido de la grilla anclada al turno principal de 90 (08:00, 09:30, 11:00…).
         ResponseEntity<Map> resp = exchange(HttpMethod.POST, "/public/reservas",
-                reservaBody(fecha, "10:00", 1L, "5493510000001", null), publicHeaders(), Map.class);
+                reservaBody(fecha, "09:30", 1L, "5493510000001", null), publicHeaders(), Map.class);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(resp.getBody()).containsKey("canchaNombre");

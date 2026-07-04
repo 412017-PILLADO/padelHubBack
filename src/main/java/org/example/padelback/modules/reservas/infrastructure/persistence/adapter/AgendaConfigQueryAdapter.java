@@ -108,6 +108,13 @@ public class AgendaConfigQueryAdapter implements AgendaConfigQueryPort {
                 complejo.getPasoMinutos(),
                 parseDuraciones(complejo.getDuracionesPermitidas()),
                 complejo.getDuracionDefault(),
+                complejo.isPermitirOtrasDuraciones(),
+                complejo.getPrecioModo().name(),
+                complejo.getPrecioHoraGeneral(),
+                complejo.isRequiereSena(),
+                complejo.getSenaMonto(),
+                complejo.getSenaAlias(),
+                complejo.isAutoasignacion(),
                 breakOn, breakFrom, breakTo,
                 week, bloqueoItems, canchaItems, contacto);
     }

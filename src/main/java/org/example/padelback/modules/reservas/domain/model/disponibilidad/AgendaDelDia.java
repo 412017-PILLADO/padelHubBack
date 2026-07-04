@@ -13,5 +13,6 @@ public record AgendaDelDia(
         int pasoMinutos,
         List<Integer> duracionesPermitidas,
         int duracionDefault,
+        boolean requiereSena,
         List<Franja> franjas,
         List<AgendaCancha> canchas) {}

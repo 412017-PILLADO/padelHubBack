@@ -11,8 +11,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import java.math.BigDecimal;
+
 import org.example.padelback.infrastructure.persistence.entity.BaseJpaEntity;
 import org.example.padelback.modules.reservas.domain.model.ComplejoEstado;
+import org.example.padelback.modules.reservas.domain.model.PrecioModo;
 
 /**
  * El complejo (local) de padel. Equivale a la "sucursal" de barber, pero la config de agenda vive
@@ -56,6 +59,47 @@ public class ComplejoJpaEntity extends BaseJpaEntity {
 
     @Column(name = "duracion_default", nullable = false)
     private int duracionDefault;
+
+    /**
+     * El turno principal ({@code duracionDefault}) define la grilla de inicios. Si está en
+     * {@code false}, el cliente solo puede reservar ese turno principal (60/120 quedan ocultos);
+     * si está en {@code true} se ofrecen todas las {@code duracionesPermitidas}, ancladas a la
+     * grilla del turno principal.
+     */
+    @Column(name = "permitir_otras_duraciones", nullable = false)
+    private boolean permitirOtrasDuraciones;
+
+    /** GENERAL = un precio por hora para todo el complejo; POR_CANCHA = el de cada cancha. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "precio_modo", nullable = false, length = 20)
+    private PrecioModo precioModo;
+
+    /** Precio por hora cuando {@link #precioModo} es GENERAL (se ignora el precio de cada cancha). */
+    @Column(name = "precio_hora_general", precision = 10, scale = 2)
+    private BigDecimal precioHoraGeneral;
+
+    /**
+     * Módulo de señas: si está en {@code true}, las reservas nuevas nacen PENDIENTE (a la espera de
+     * que el dueño valide la seña) y retienen la cancha durante la ventana de pago; si está en
+     * {@code false} nacen CONFIRMADO directo (comportamiento por defecto).
+     */
+    @Column(name = "requiere_sena", nullable = false)
+    private boolean requiereSena;
+
+    /** Monto informativo de la seña que se le muestra al cliente (no se cobra en la app). */
+    @Column(name = "sena_monto", precision = 10, scale = 2)
+    private BigDecimal senaMonto;
+
+    /** Alias / CBU / CVU al que el cliente transfiere la seña (se muestra con botón para copiar). */
+    @Column(name = "sena_alias", length = 100)
+    private String senaAlias;
+
+    /**
+     * Si está en {@code true}, el sistema asigna una cancha disponible automáticamente (la menos
+     * cargada) y la landing no le muestra al cliente el paso de elegir cancha.
+     */
+    @Column(name = "autoasignacion", nullable = false)
+    private boolean autoasignacion;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

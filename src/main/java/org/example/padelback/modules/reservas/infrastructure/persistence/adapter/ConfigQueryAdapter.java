@@ -1,5 +1,6 @@
 package org.example.padelback.modules.reservas.infrastructure.persistence.adapter;
 
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -7,12 +8,14 @@ import java.util.Optional;
 import org.example.padelback.domain.port.TenantProvider;
 import org.example.padelback.modules.reservas.domain.model.CanchaEstado;
 import org.example.padelback.modules.reservas.domain.model.ComplejoEstado;
+import org.example.padelback.modules.reservas.domain.model.PrecioModo;
 import org.example.padelback.modules.reservas.domain.model.config.ConfigPublico;
 import org.example.padelback.modules.reservas.domain.model.config.ConfigPublico.CanchaInfo;
 import org.example.padelback.modules.reservas.domain.model.config.ConfigPublico.ComplejoInfo;
 import org.example.padelback.modules.reservas.domain.model.config.ConfigPublico.HorarioInfo;
 import org.example.padelback.modules.reservas.domain.model.config.ConfigPublico.TenantInfo;
 import org.example.padelback.modules.reservas.domain.port.ConfigQueryPort;
+import org.example.padelback.modules.reservas.infrastructure.persistence.entity.CanchaJpaEntity;
 import org.example.padelback.modules.reservas.infrastructure.persistence.entity.ComplejoJpaEntity;
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.CanchaJpaRepository;
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.ComplejoJpaRepository;
@@ -56,7 +59,7 @@ public class ConfigQueryAdapter implements ConfigQueryPort {
                 .findByTenantIdAndComplejoIdAndEstadoAndActiveTrueOrderByOrdenAsc(tenantId, complejo.getId(), CanchaEstado.ACTIVO)
                 .stream()
                 .map(c -> new CanchaInfo(c.getId(), c.getNombre(), c.getOrden(), c.isTechada(),
-                        c.getTipoPared().name(), c.getPrecioHora(), c.getColor()))
+                        c.getTipoPared().name(), precioEfectivo(complejo, c), c.getColor()))
                 .toList();
 
         List<HorarioInfo> horarios = horarioRepo
@@ -72,9 +75,23 @@ public class ConfigQueryAdapter implements ConfigQueryPort {
         ComplejoInfo complejoInfo = new ComplejoInfo(complejo.getId(), complejo.getNombre(), complejo.getDireccion(),
                 complejo.getTelefono(), complejo.getWhatsapp(), complejo.getMapaUrl(), complejo.getInstagram());
 
+        // Si no permite otras duraciones, la pública solo ofrece el turno principal.
+        List<Integer> duraciones = complejo.isPermitirOtrasDuraciones()
+                ? parseDuraciones(complejo.getDuracionesPermitidas())
+                : List.of(complejo.getDuracionDefault());
+
         return Optional.of(new ConfigPublico(tenantInfo, complejoInfo, complejo.getPasoMinutos(),
-                parseDuraciones(complejo.getDuracionesPermitidas()), complejo.getDuracionDefault(),
+                duraciones, complejo.getDuracionDefault(), complejo.isPermitirOtrasDuraciones(),
+                complejo.isRequiereSena(), complejo.getSenaMonto(), complejo.getSenaAlias(),
+                complejo.isAutoasignacion(),
                 canchas, horarios));
+    }
+
+    /** Precio por hora aplicable a la cancha según el modo del complejo (GENERAL o POR_CANCHA). */
+    private static BigDecimal precioEfectivo(ComplejoJpaEntity complejo, CanchaJpaEntity cancha) {
+        return complejo.getPrecioModo() == PrecioModo.GENERAL
+                ? complejo.getPrecioHoraGeneral()
+                : cancha.getPrecioHora();
     }
 
     private static List<Integer> parseDuraciones(String csv) {

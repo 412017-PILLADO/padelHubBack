@@ -14,6 +14,7 @@ import org.example.padelback.modules.reservas.domain.exception.ComplejoNoResuelt
 import org.example.padelback.modules.reservas.domain.exception.DuracionInvalidaException;
 import org.example.padelback.modules.reservas.domain.model.CanchaEstado;
 import org.example.padelback.modules.reservas.domain.model.ComplejoEstado;
+import org.example.padelback.modules.reservas.domain.model.PrecioModo;
 import org.example.padelback.modules.reservas.domain.model.TipoPared;
 import org.example.padelback.modules.reservas.domain.model.config.AgendaConfig;
 import org.example.padelback.modules.reservas.domain.port.AgendaConfigCommandPort;
@@ -83,7 +84,8 @@ public class AgendaConfigCommandAdapter implements AgendaConfigCommandPort {
 
     @Override
     @Transactional
-    public void actualizarDuraciones(int pasoMinutos, List<Integer> duraciones, int duracionDefault) {
+    public void actualizarDuraciones(int pasoMinutos, List<Integer> duraciones, int duracionDefault,
+                                     boolean permitirOtrasDuraciones) {
         if (pasoMinutos < 5 || pasoMinutos > 120) {
             throw new DuracionInvalidaException("pasoMinutos debe estar entre 5 y 120");
         }
@@ -95,13 +97,73 @@ public class AgendaConfigCommandAdapter implements AgendaConfigCommandPort {
         }
         if (!duraciones.contains(duracionDefault)) {
             throw new DuracionInvalidaException(
-                    "La duración default (" + duracionDefault + ") debe estar entre las permitidas " + duraciones);
+                    "El turno principal (" + duracionDefault + ") debe estar entre las duraciones " + duraciones);
         }
         Long tenantId = tenantProvider.requireTenantId();
         ComplejoJpaEntity complejo = resolverComplejo(tenantId);
         complejo.setPasoMinutos(pasoMinutos);
         complejo.setDuracionesPermitidas(duraciones.stream().map(String::valueOf).collect(Collectors.joining(",")));
         complejo.setDuracionDefault(duracionDefault);
+        complejo.setPermitirOtrasDuraciones(permitirOtrasDuraciones);
+        complejoRepo.save(complejo);
+    }
+
+    @Override
+    @Transactional
+    public void actualizarPrecios(String precioModo, BigDecimal precioHoraGeneral) {
+        PrecioModo modo = parsearPrecioModo(precioModo);
+        validarPrecio(precioHoraGeneral);
+        if (modo == PrecioModo.GENERAL && precioHoraGeneral == null) {
+            throw new CanchaInvalidaException("Con precio general hay que cargar el precio por hora");
+        }
+        Long tenantId = tenantProvider.requireTenantId();
+        ComplejoJpaEntity complejo = resolverComplejo(tenantId);
+        complejo.setPrecioModo(modo);
+        complejo.setPrecioHoraGeneral(precioHoraGeneral);
+        complejoRepo.save(complejo);
+    }
+
+    private static PrecioModo parsearPrecioModo(String valor) {
+        String t = limpiar(valor);
+        if (t == null) {
+            throw new CanchaInvalidaException("El modo de precio es obligatorio (GENERAL o POR_CANCHA)");
+        }
+        try {
+            return PrecioModo.valueOf(t.toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new CanchaInvalidaException("Modo de precio inválido: " + valor + " (GENERAL o POR_CANCHA)");
+        }
+    }
+
+    @Override
+    @Transactional
+    public void actualizarSena(boolean requiereSena, BigDecimal senaMonto, String senaAlias) {
+        String alias = senaAlias == null ? null : senaAlias.trim();
+        // Si el módulo está prendido necesitamos monto > 0 y un alias: sin eso el cliente no sabe
+        // cuánto ni a dónde transferir la seña.
+        if (requiereSena) {
+            if (senaMonto == null || senaMonto.signum() <= 0) {
+                throw new CanchaInvalidaException("Si pedís seña, cargá un monto mayor a 0.");
+            }
+            if (alias == null || alias.isEmpty()) {
+                throw new CanchaInvalidaException("Si pedís seña, cargá el alias donde reciben la transferencia.");
+            }
+        }
+        validarPrecio(senaMonto);
+        Long tenantId = tenantProvider.requireTenantId();
+        ComplejoJpaEntity complejo = resolverComplejo(tenantId);
+        complejo.setRequiereSena(requiereSena);
+        complejo.setSenaMonto(senaMonto);
+        complejo.setSenaAlias(alias == null || alias.isEmpty() ? null : alias);
+        complejoRepo.save(complejo);
+    }
+
+    @Override
+    @Transactional
+    public void actualizarAutoasignacion(boolean autoasignacion) {
+        Long tenantId = tenantProvider.requireTenantId();
+        ComplejoJpaEntity complejo = resolverComplejo(tenantId);
+        complejo.setAutoasignacion(autoasignacion);
         complejoRepo.save(complejo);
     }
 

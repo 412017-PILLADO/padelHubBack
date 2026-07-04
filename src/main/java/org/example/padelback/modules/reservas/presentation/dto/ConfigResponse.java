@@ -12,6 +12,11 @@ public record ConfigResponse(
         int pasoMinutos,
         List<Integer> duracionesPermitidas,
         int duracionDefault,
+        boolean permitirOtrasDuraciones,
+        boolean requiereSena,
+        BigDecimal senaMonto,
+        String senaAlias,
+        boolean autoasignacion,
         List<Cancha> canchas,
         List<Horario> horarios) {
 
@@ -38,6 +43,11 @@ public record ConfigResponse(
                 c.pasoMinutos(),
                 c.duracionesPermitidas(),
                 c.duracionDefault(),
+                c.permitirOtrasDuraciones(),
+                c.requiereSena(),
+                c.senaMonto(),
+                c.senaAlias(),
+                c.autoasignacion(),
                 c.canchas().stream()
                         .map(ca -> new Cancha(ca.id(), ca.nombre(), ca.orden(), ca.techada(), ca.tipoPared(),
                                 ca.precioHora(), ca.color())).toList(),

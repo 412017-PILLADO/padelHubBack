@@ -8,4 +8,6 @@ public record ReservaCreada(
         String canchaNombre,
         LocalDateTime inicio,
         LocalDateTime fin,
-        int duracionMinutos) {}
+        int duracionMinutos,
+        /** CONFIRMADO (reserva directa) o PENDIENTE (a la espera de validar la seña). */
+        String estado) {}
