@@ -13,6 +13,7 @@ import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import org.example.padelback.infrastructure.security.JwtTenantContextFilter;
 import org.example.padelback.infrastructure.security.JwtTenantResolver;
 import org.example.padelback.infrastructure.tenancy.PublicTenantContextFilter;
+import org.example.padelback.modules.tenant.infrastructure.security.PlatformKeyAuthFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -51,6 +52,9 @@ public class SecurityConfig {
     private final JwtTenantResolver jwtTenantResolver;
     private final JwtProperties jwtProperties;
 
+    @Value("${padel.platform.admin-key:}")
+    private String platformAdminKey;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
@@ -58,11 +62,15 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/public/**", "/api/v1/auth/login",
+                        .requestMatchers("/public/**", "/api/v1/auth/login", "/platform/auth/login",
                                 "/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
                         .requestMatchers("/api/v1/**").authenticated()
+                        // Panel de dev: super-admin (JWT SUPERADMIN o X-Platform-Key vía filtro).
+                        .requestMatchers("/platform/**").hasRole("SUPERADMIN")
                         .anyRequest().permitAll())
                 .oauth2ResourceServer(o -> o.jwt(j -> j.jwtAuthenticationConverter(jwtAuthenticationConverter())))
+                // La key de plataforma corre antes del bearer: cubre el uso por script sin JWT.
+                .addFilterBefore(new PlatformKeyAuthFilter(platformAdminKey), BearerTokenAuthenticationFilter.class)
                 .addFilterAfter(new JwtTenantContextFilter(jwtTenantResolver), BearerTokenAuthenticationFilter.class)
                 .build();
     }
