@@ -18,6 +18,7 @@ import org.example.padelback.modules.reservas.domain.model.disponibilidad.Agenda
 import org.example.padelback.modules.reservas.domain.model.disponibilidad.CanchaRef;
 import org.example.padelback.modules.reservas.domain.model.disponibilidad.Franja;
 import org.example.padelback.modules.reservas.domain.model.disponibilidad.Ocupacion;
+import org.example.padelback.modules.reservas.domain.model.disponibilidad.PrecioFranja;
 import org.example.padelback.modules.reservas.domain.port.AgendaQueryPort;
 import org.example.padelback.modules.reservas.infrastructure.persistence.entity.BloqueoJpaEntity;
 import org.example.padelback.modules.reservas.infrastructure.persistence.entity.CanchaJpaEntity;
@@ -28,6 +29,7 @@ import org.example.padelback.modules.reservas.infrastructure.persistence.reposit
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.CanchaJpaRepository;
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.ComplejoJpaRepository;
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.HorarioComplejoJpaRepository;
+import org.example.padelback.modules.reservas.infrastructure.persistence.repository.PrecioFranjaJpaRepository;
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.ReservaJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -41,6 +43,7 @@ public class AgendaQueryAdapter implements AgendaQueryPort {
     private final ComplejoJpaRepository complejoRepo;
     private final CanchaJpaRepository canchaRepo;
     private final HorarioComplejoJpaRepository horarioRepo;
+    private final PrecioFranjaJpaRepository precioFranjaRepo;
     private final ReservaJpaRepository reservaRepo;
     private final BloqueoJpaRepository bloqueoRepo;
     private final Clock clock;
@@ -83,6 +86,12 @@ public class AgendaQueryAdapter implements AgendaQueryPort {
                 .findByTenantIdAndComplejoIdAndDiaSemanaAndActiveTrue(tenantId, complejoId, diaSemana)
                 .stream().map(h -> new Franja(h.getHoraInicio(), h.getHoraFin())).toList();
 
+        // Franjas de precio especial: GENERALES del complejo (no por día de semana, a diferencia de
+        // las franjas de apertura) y pisan el precio de todas las canchas por igual.
+        List<PrecioFranja> precioFranjas = precioFranjaRepo
+                .findByTenantIdAndComplejoIdAndActiveTrue(tenantId, complejoId)
+                .stream().map(f -> new PrecioFranja(f.getHoraDesde(), f.getHoraHasta(), f.getPrecioHora())).toList();
+
         // M1: la disponibilidad pública SOLO muestra canchas ACTIVO (a diferencia del panel del
         // dueño, que también lista las INACTIVO para poder reactivarlas) — una cancha INACTIVO no debe
         // ofrecerse para reservar.
@@ -91,7 +100,7 @@ public class AgendaQueryAdapter implements AgendaQueryPort {
 
         if (canchas.isEmpty() || franjas.isEmpty()) {
             return Optional.of(new AgendaDelDia(fecha, complejo.getPasoMinutos(), duraciones,
-                    complejo.getDuracionDefault(), complejo.isRequiereSena(), franjas, List.of()));
+                    complejo.getDuracionDefault(), complejo.isRequiereSena(), franjas, precioFranjas, List.of()));
         }
 
         LocalDateTime desde = fecha.atStartOfDay();
@@ -119,7 +128,7 @@ public class AgendaQueryAdapter implements AgendaQueryPort {
         }).toList();
 
         return Optional.of(new AgendaDelDia(fecha, complejo.getPasoMinutos(), duraciones,
-                complejo.getDuracionDefault(), complejo.isRequiereSena(), franjas, agendaCanchas));
+                complejo.getDuracionDefault(), complejo.isRequiereSena(), franjas, precioFranjas, agendaCanchas));
     }
 
     /** Precio por hora aplicable a la cancha según el modo del complejo (GENERAL o POR_CANCHA). */

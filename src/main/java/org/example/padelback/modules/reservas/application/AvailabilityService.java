@@ -1,5 +1,6 @@
 package org.example.padelback.modules.reservas.application;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -14,6 +15,7 @@ import org.example.padelback.modules.reservas.domain.model.disponibilidad.Cancha
 import org.example.padelback.modules.reservas.domain.model.disponibilidad.CanchaRef;
 import org.example.padelback.modules.reservas.domain.model.disponibilidad.Franja;
 import org.example.padelback.modules.reservas.domain.model.disponibilidad.Ocupacion;
+import org.example.padelback.modules.reservas.domain.model.disponibilidad.PrecioFranja;
 import org.example.padelback.modules.reservas.domain.model.disponibilidad.SlotDisponibilidad;
 import org.springframework.stereotype.Service;
 
@@ -84,14 +86,41 @@ public class AvailabilityService {
                 for (Map.Entry<CanchaRef, TreeSet<LocalTime>> e : libresPorCancha.entrySet()) {
                     if (e.getValue().contains(hora)) {
                         CanchaRef c = e.getKey();
+                        // El precio por slot es el EFECTIVO para esa hora de inicio: si cae en una franja
+                        // de precio especial (generales del complejo, pisan a todas las canchas por igual)
+                        // se cobra esa tarifa; si no, el precio habitual ya resuelto de la cancha (general
+                        // o por cancha, según el modo del complejo). Es la misma cuenta que ve el público
+                        // en la disponibilidad y la que se le cobra en el mostrador.
+                        BigDecimal precio = precioEfectivo(c.precioHora(), hora, agenda.precioFranjas());
                         libres.add(new CanchaLibre(c.id(), c.nombre(), c.color(), c.techada(),
-                                c.tipoPared(), c.precioHora()));
+                                c.tipoPared(), precio));
                     }
                 }
             }
             resultado.add(new SlotDisponibilidad(hora, !libres.isEmpty(), libres));
         }
         return resultado;
+    }
+
+    /**
+     * Precio por hora efectivo para un turno que arranca a las {@code inicio}: si cae dentro de
+     * alguna franja de precio especial ({@code [desde, hasta)}, con {@code hasta} = 00:00
+     * interpretado como 24:00 igual que las franjas de apertura) se paga el precio de esa franja
+     * (escalado por duración igual que el precio habitual, fuera de este método); si no cae en
+     * ninguna, se devuelve el {@code precioBase} (ya resuelto aguas arriba según el modo GENERAL o
+     * POR_CANCHA del complejo). Función pura, testeada aparte: es la pieza que garantiza que el
+     * precio que ve el público en la disponibilidad de un slot es EXACTAMENTE el que se cobra.
+     */
+    static BigDecimal precioEfectivo(BigDecimal precioBase, LocalTime inicio, List<PrecioFranja> precioFranjas) {
+        int inicioMin = inicio.toSecondOfDay() / 60;
+        for (PrecioFranja f : precioFranjas) {
+            int desdeMin = f.desde().toSecondOfDay() / 60;
+            int hastaMin = f.hasta().equals(LocalTime.MIDNIGHT) ? 24 * 60 : f.hasta().toSecondOfDay() / 60;
+            if (inicioMin >= desdeMin && inicioMin < hastaMin) {
+                return f.precioHora();
+            }
+        }
+        return precioBase;
     }
 
     private boolean solapa(LocalDateTime ini, LocalDateTime fin, List<Ocupacion> ocupaciones) {

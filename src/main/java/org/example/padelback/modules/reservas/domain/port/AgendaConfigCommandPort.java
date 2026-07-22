@@ -14,6 +14,8 @@ public interface AgendaConfigCommandPort {
     void actualizarDuraciones(int pasoMinutos, List<Integer> duraciones, int duracionDefault,
                               boolean permitirOtrasDuraciones);
     void actualizarPrecios(String precioModo, BigDecimal precioHoraGeneral);
+    /** Replace-all: reemplaza TODAS las franjas de precio del complejo (lista vacía = sin franjas). */
+    void guardarPrecioFranjas(List<AgendaConfig.PrecioFranjaItem> franjas);
     void actualizarSena(boolean requiereSena, BigDecimal senaMonto, String senaAlias);
     void actualizarAutoasignacion(boolean autoasignacion);
     void actualizarContacto(AgendaConfig.Contacto contacto);

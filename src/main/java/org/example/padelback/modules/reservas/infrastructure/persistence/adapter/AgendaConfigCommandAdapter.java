@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,11 +29,13 @@ import org.example.padelback.modules.reservas.infrastructure.persistence.entity.
 import org.example.padelback.modules.reservas.infrastructure.persistence.entity.CanchaJpaEntity;
 import org.example.padelback.modules.reservas.infrastructure.persistence.entity.ComplejoJpaEntity;
 import org.example.padelback.modules.reservas.infrastructure.persistence.entity.HorarioComplejoJpaEntity;
+import org.example.padelback.modules.reservas.infrastructure.persistence.entity.PrecioFranjaJpaEntity;
 import org.example.padelback.modules.reservas.infrastructure.persistence.entity.ReservaJpaEntity;
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.BloqueoJpaRepository;
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.CanchaJpaRepository;
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.ComplejoJpaRepository;
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.HorarioComplejoJpaRepository;
+import org.example.padelback.modules.reservas.infrastructure.persistence.repository.PrecioFranjaJpaRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
@@ -54,6 +57,7 @@ public class AgendaConfigCommandAdapter implements AgendaConfigCommandPort {
     private final ComplejoJpaRepository complejoRepo;
     private final CanchaJpaRepository canchaRepo;
     private final HorarioComplejoJpaRepository horarioRepo;
+    private final PrecioFranjaJpaRepository precioFranjaRepo;
     private final BloqueoJpaRepository bloqueoRepo;
     private final Clock clock;
 
@@ -284,6 +288,63 @@ public class AgendaConfigCommandAdapter implements AgendaConfigCommandPort {
             return PrecioModo.valueOf(t.toUpperCase());
         } catch (IllegalArgumentException ex) {
             throw new CanchaInvalidaException("Modo de precio inválido: " + valor + " (GENERAL o POR_CANCHA)");
+        }
+    }
+
+    @Override
+    @Transactional
+    public void guardarPrecioFranjas(List<AgendaConfig.PrecioFranjaItem> franjas) {
+        List<AgendaConfig.PrecioFranjaItem> lista = franjas == null ? List.of() : franjas;
+        validarPrecioFranjas(lista);
+
+        Long tenantId = tenantProvider.requireTenantId();
+        ComplejoJpaEntity complejo = resolverComplejo(tenantId);
+
+        // Replace-all, mismo patrón que guardarHorarios: borra todo e inserta de nuevo (lista vacía =
+        // sin franjas de precio especial).
+        precioFranjaRepo.deleteByTenantIdAndComplejoId(tenantId, complejo.getId());
+        precioFranjaRepo.flush();
+
+        for (AgendaConfig.PrecioFranjaItem f : lista) {
+            // tenant_id lo estampa TenantEntityListener desde el TenantContext.
+            PrecioFranjaJpaEntity e = PrecioFranjaJpaEntity.builder()
+                    .complejoId(complejo.getId())
+                    .horaDesde(f.desde())
+                    .horaHasta(f.hasta())
+                    .precioHora(f.precioHora())
+                    .build();
+            precioFranjaRepo.save(e);
+        }
+    }
+
+    /**
+     * Valida las franjas de precio a guardar (función pura, testeada aparte): {@code precioHora > 0},
+     * {@code desde < hasta} (con {@code hasta = "00:00"} interpretado como medianoche/24:00, igual
+     * criterio que {@link #franjasDelDia}) y sin solapes entre franjas (comparación en minutos).
+     *
+     * @throws CanchaInvalidaException con un mensaje claro si alguna franja es inválida
+     */
+    static void validarPrecioFranjas(List<AgendaConfig.PrecioFranjaItem> franjas) {
+        for (AgendaConfig.PrecioFranjaItem f : franjas) {
+            if (f.desde() == null || f.hasta() == null) {
+                throw new CanchaInvalidaException("Franja de precio inválida: desde y hasta son obligatorios");
+            }
+            if (f.precioHora() == null || f.precioHora().signum() <= 0) {
+                throw new CanchaInvalidaException("El precio por hora de la franja debe ser mayor a 0");
+            }
+            if (minutosApertura(f.desde()) >= minutosCierre(f.hasta())) {
+                throw new CanchaInvalidaException("Franja de precio inválida: desde < hasta requerido");
+            }
+        }
+        List<AgendaConfig.PrecioFranjaItem> ordenadas = franjas.stream()
+                .sorted(Comparator.comparingInt(f -> minutosApertura(f.desde())))
+                .toList();
+        for (int i = 1; i < ordenadas.size(); i++) {
+            int finAnterior = minutosCierre(ordenadas.get(i - 1).hasta());
+            int inicioActual = minutosApertura(ordenadas.get(i).desde());
+            if (inicioActual < finAnterior) {
+                throw new CanchaInvalidaException("Las franjas de precio no pueden solaparse");
+            }
         }
     }
 

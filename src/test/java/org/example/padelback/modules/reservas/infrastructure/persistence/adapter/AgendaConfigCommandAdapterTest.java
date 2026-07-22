@@ -3,8 +3,12 @@ package org.example.padelback.modules.reservas.infrastructure.persistence.adapte
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
 import java.time.LocalTime;
+import java.util.List;
 
+import org.example.padelback.modules.reservas.domain.exception.CanchaInvalidaException;
+import org.example.padelback.modules.reservas.domain.model.config.AgendaConfig;
 import org.example.padelback.modules.reservas.domain.model.disponibilidad.Franja;
 import org.junit.jupiter.api.Test;
 
@@ -104,5 +108,68 @@ class AgendaConfigCommandAdapterTest {
         var franjas = AgendaConfigCommandAdapter.franjasDelDia(LocalTime.MIDNIGHT, LocalTime.MIDNIGHT, false, null, null);
 
         assertThat(franjas).containsExactly(new Franja(LocalTime.MIDNIGHT, LocalTime.MIDNIGHT));
+    }
+
+    // =====================================================================
+    // AgendaConfigCommandAdapter#validarPrecioFranjas (función pura, sin persistencia): reglas de
+    // "Precio por horario" — precio > 0, desde < hasta (con hasta="00:00" = medianoche) y sin solapes.
+    // =====================================================================
+
+    private static AgendaConfig.PrecioFranjaItem franjaPrecio(LocalTime desde, LocalTime hasta, String precio) {
+        return new AgendaConfig.PrecioFranjaItem(null, desde, hasta, new BigDecimal(precio));
+    }
+
+    @Test
+    void validarPrecioFranjas_listaVacia_noFalla() {
+        AgendaConfigCommandAdapter.validarPrecioFranjas(List.of());
+    }
+
+    @Test
+    void validarPrecioFranjas_franjaValida_noFalla() {
+        AgendaConfigCommandAdapter.validarPrecioFranjas(
+                List.of(franjaPrecio(LocalTime.of(15, 0), LocalTime.of(18, 0), "8000")));
+    }
+
+    @Test
+    void validarPrecioFranjas_precioNegativoOCero_esInvalido() {
+        assertThatThrownBy(() -> AgendaConfigCommandAdapter.validarPrecioFranjas(
+                List.of(franjaPrecio(LocalTime.of(15, 0), LocalTime.of(18, 0), "0"))))
+                .isInstanceOf(CanchaInvalidaException.class);
+        assertThatThrownBy(() -> AgendaConfigCommandAdapter.validarPrecioFranjas(
+                List.of(franjaPrecio(LocalTime.of(15, 0), LocalTime.of(18, 0), "-100"))))
+                .isInstanceOf(CanchaInvalidaException.class);
+    }
+
+    @Test
+    void validarPrecioFranjas_desdeMayorOIgualAHasta_esInvalida() {
+        assertThatThrownBy(() -> AgendaConfigCommandAdapter.validarPrecioFranjas(
+                List.of(franjaPrecio(LocalTime.of(18, 0), LocalTime.of(18, 0), "8000"))))
+                .isInstanceOf(CanchaInvalidaException.class);
+        assertThatThrownBy(() -> AgendaConfigCommandAdapter.validarPrecioFranjas(
+                List.of(franjaPrecio(LocalTime.of(19, 0), LocalTime.of(18, 0), "8000"))))
+                .isInstanceOf(CanchaInvalidaException.class);
+    }
+
+    @Test
+    void validarPrecioFranjas_hastaMedianoche_esValida() {
+        AgendaConfigCommandAdapter.validarPrecioFranjas(
+                List.of(franjaPrecio(LocalTime.of(20, 0), LocalTime.MIDNIGHT, "8000")));
+    }
+
+    @Test
+    void validarPrecioFranjas_franjasQueSeSolapan_esInvalido() {
+        assertThatThrownBy(() -> AgendaConfigCommandAdapter.validarPrecioFranjas(List.of(
+                franjaPrecio(LocalTime.of(15, 0), LocalTime.of(18, 0), "8000"),
+                franjaPrecio(LocalTime.of(17, 0), LocalTime.of(20, 0), "9000"))))
+                .isInstanceOf(CanchaInvalidaException.class);
+    }
+
+    @Test
+    void validarPrecioFranjas_franjasContiguasSinSolape_esValido() {
+        // [15:00,18:00) y [18:00,20:00) no se solapan: el fin de una coincide justo con el inicio de
+        // la siguiente.
+        AgendaConfigCommandAdapter.validarPrecioFranjas(List.of(
+                franjaPrecio(LocalTime.of(15, 0), LocalTime.of(18, 0), "8000"),
+                franjaPrecio(LocalTime.of(18, 0), LocalTime.of(20, 0), "9000")));
     }
 }

@@ -15,4 +15,5 @@ public record AgendaDelDia(
         int duracionDefault,
         boolean requiereSena,
         List<Franja> franjas,
+        List<PrecioFranja> precioFranjas,
         List<AgendaCancha> canchas) {}

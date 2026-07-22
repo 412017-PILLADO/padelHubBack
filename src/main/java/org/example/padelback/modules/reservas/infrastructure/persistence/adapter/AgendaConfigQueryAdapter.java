@@ -18,10 +18,12 @@ import org.example.padelback.modules.reservas.infrastructure.persistence.entity.
 import org.example.padelback.modules.reservas.infrastructure.persistence.entity.CanchaJpaEntity;
 import org.example.padelback.modules.reservas.infrastructure.persistence.entity.ComplejoJpaEntity;
 import org.example.padelback.modules.reservas.infrastructure.persistence.entity.HorarioComplejoJpaEntity;
+import org.example.padelback.modules.reservas.infrastructure.persistence.entity.PrecioFranjaJpaEntity;
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.BloqueoJpaRepository;
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.CanchaJpaRepository;
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.ComplejoJpaRepository;
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.HorarioComplejoJpaRepository;
+import org.example.padelback.modules.reservas.infrastructure.persistence.repository.PrecioFranjaJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +41,7 @@ public class AgendaConfigQueryAdapter implements AgendaConfigQueryPort {
     private final ComplejoJpaRepository complejoRepo;
     private final CanchaJpaRepository canchaRepo;
     private final HorarioComplejoJpaRepository horarioRepo;
+    private final PrecioFranjaJpaRepository precioFranjaRepo;
     private final BloqueoJpaRepository bloqueoRepo;
 
     @Override
@@ -100,6 +103,13 @@ public class AgendaConfigQueryAdapter implements AgendaConfigQueryPort {
                         c.getTipoPared().name(), c.getPrecioHora(), c.getColor(), c.getEstado().name()))
                 .toList();
 
+        List<PrecioFranjaJpaEntity> franjasPrecio =
+                precioFranjaRepo.findByTenantIdAndComplejoIdAndActiveTrue(tenantId, complejo.getId());
+        List<AgendaConfig.PrecioFranjaItem> precioFranjaItems = franjasPrecio.stream()
+                .sorted((a, b) -> a.getHoraDesde().compareTo(b.getHoraDesde()))
+                .map(f -> new AgendaConfig.PrecioFranjaItem(f.getId(), f.getHoraDesde(), f.getHoraHasta(), f.getPrecioHora()))
+                .toList();
+
         LocalDate hoy = LocalDate.now();
         List<BloqueoJpaEntity> bloqueos = bloqueoRepo
                 .findByTenantIdAndComplejoIdAndActiveTrueAndFechaHoraHastaGreaterThanEqualOrderByFechaHoraDesdeAsc(
@@ -127,7 +137,7 @@ public class AgendaConfigQueryAdapter implements AgendaConfigQueryPort {
                 complejo.getSenaAlias(),
                 complejo.isAutoasignacion(),
                 breakOn, breakFrom, breakTo,
-                week, bloqueoItems, canchaItems, contacto);
+                week, bloqueoItems, canchaItems, precioFranjaItems, contacto);
     }
 
     /** Minutos de un horario "de cierre" tratando 00:00 como medianoche (24:00), no como apertura. */
