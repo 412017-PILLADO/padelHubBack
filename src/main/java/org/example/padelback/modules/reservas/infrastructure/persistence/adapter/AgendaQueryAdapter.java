@@ -83,6 +83,9 @@ public class AgendaQueryAdapter implements AgendaQueryPort {
                 .findByTenantIdAndComplejoIdAndDiaSemanaAndActiveTrue(tenantId, complejoId, diaSemana)
                 .stream().map(h -> new Franja(h.getHoraInicio(), h.getHoraFin())).toList();
 
+        // M1: la disponibilidad pública SOLO muestra canchas ACTIVO (a diferencia del panel del
+        // dueño, que también lista las INACTIVO para poder reactivarlas) — una cancha INACTIVO no debe
+        // ofrecerse para reservar.
         List<CanchaJpaEntity> canchas = canchaRepo
                 .findByTenantIdAndComplejoIdAndEstadoAndActiveTrueOrderByOrdenAsc(tenantId, complejoId, CanchaEstado.ACTIVO);
 

@@ -4,13 +4,13 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.example.padelback.domain.port.TenantProvider;
 import org.example.padelback.modules.reservas.domain.exception.ComplejoNoResueltoException;
-import org.example.padelback.modules.reservas.domain.model.CanchaEstado;
 import org.example.padelback.modules.reservas.domain.model.ComplejoEstado;
 import org.example.padelback.modules.reservas.domain.model.config.AgendaConfig;
 import org.example.padelback.modules.reservas.domain.port.AgendaConfigQueryPort;
@@ -66,8 +66,14 @@ public class AgendaConfigQueryAdapter implements AgendaConfigQueryPort {
             } else {
                 LocalTime from = delDia.stream().map(HorarioComplejoJpaEntity::getHoraInicio)
                         .min(LocalTime::compareTo).orElse(DEFAULT_FROM);
+                // M-medianoche: "to" es el cierre del día, y "00:00" ahí significa 24:00 (cierra al
+                // terminar el día), no la apertura. Con un max() de LocalTime común, 00:00 compararía
+                // como el MENOR horario y una franja "20:00-00:00" mostraría "to" = 20:00 (mal). Se
+                // sigue devolviendo "00:00" tal cual al panel (así se guardó), pero comparando como si
+                // fuera el mayor horario del día.
                 LocalTime to = delDia.stream().map(HorarioComplejoJpaEntity::getHoraFin)
-                        .max(LocalTime::compareTo).orElse(DEFAULT_TO);
+                        .max((a, b) -> Integer.compare(comoCierre(a), comoCierre(b)))
+                        .orElse(DEFAULT_TO);
                 week.add(new AgendaConfig.DiaConfig(dia, true, from, to));
                 // break: primer día abierto con exactamente 2 franjas
                 if (!breakOn && delDia.size() == 2) {
@@ -78,9 +84,14 @@ public class AgendaConfigQueryAdapter implements AgendaConfigQueryPort {
             }
         }
 
-        List<CanchaJpaEntity> canchas = canchaRepo
-                .findByTenantIdAndComplejoIdAndEstadoAndActiveTrueOrderByOrdenAsc(
-                        tenantId, complejo.getId(), CanchaEstado.ACTIVO);
+        // M1: el panel del dueño muestra TODAS las canchas no eliminadas (ACTIVO e INACTIVO) — si acá
+        // se filtrara por ACTIVO, una cancha pasada a INACTIVO desaparecería para siempre del panel y
+        // no habría forma de reactivarla. La disponibilidad pública (AgendaQueryAdapter) y el config
+        // público (ConfigQueryAdapter) SÍ siguen filtrando solo ACTIVO: ahí es intencional.
+        List<CanchaJpaEntity> canchas = canchaRepo.findByTenantIdAndActiveTrue(tenantId).stream()
+                .filter(c -> c.getComplejoId().equals(complejo.getId()))
+                .sorted(Comparator.comparingInt(CanchaJpaEntity::getOrden))
+                .toList();
         Map<Long, String> nombrePorCancha = canchas.stream()
                 .collect(Collectors.toMap(CanchaJpaEntity::getId, CanchaJpaEntity::getNombre));
 
@@ -117,6 +128,11 @@ public class AgendaConfigQueryAdapter implements AgendaConfigQueryPort {
                 complejo.isAutoasignacion(),
                 breakOn, breakFrom, breakTo,
                 week, bloqueoItems, canchaItems, contacto);
+    }
+
+    /** Minutos de un horario "de cierre" tratando 00:00 como medianoche (24:00), no como apertura. */
+    private static int comoCierre(LocalTime t) {
+        return t.equals(LocalTime.MIDNIGHT) ? 24 * 60 : t.toSecondOfDay() / 60;
     }
 
     private static String nombreCancha(Long canchaId, Map<Long, String> nombrePorCancha) {

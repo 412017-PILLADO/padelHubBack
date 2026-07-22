@@ -1,6 +1,7 @@
 package org.example.padelback.modules.reservas.application;
 
 import java.time.LocalDate;
+import java.util.List;
 
 import org.example.padelback.modules.reservas.domain.model.config.AgendaConfig;
 import org.example.padelback.modules.reservas.domain.port.AgendaConfigCommandPort;
@@ -13,7 +14,8 @@ public class GestionBloqueosUseCase {
 
     private final AgendaConfigCommandPort commandPort;
 
-    public AgendaConfig.BloqueoItem crear(LocalDate fecha, Long canchaId, String motivo) {
+    /** @return reservas activas futuras que el bloqueo recién creado dejó solapadas (advertencia, no lo impide). */
+    public List<AgendaConfig.ReservaAfectada> crear(LocalDate fecha, Long canchaId, String motivo) {
         return commandPort.crearBloqueo(fecha, canchaId, motivo);
     }
 

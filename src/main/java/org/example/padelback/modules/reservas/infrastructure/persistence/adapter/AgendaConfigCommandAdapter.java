@@ -1,9 +1,14 @@
 package org.example.padelback.modules.reservas.infrastructure.persistence.adapter;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.example.padelback.domain.port.TenantProvider;
@@ -17,15 +22,19 @@ import org.example.padelback.modules.reservas.domain.model.ComplejoEstado;
 import org.example.padelback.modules.reservas.domain.model.PrecioModo;
 import org.example.padelback.modules.reservas.domain.model.TipoPared;
 import org.example.padelback.modules.reservas.domain.model.config.AgendaConfig;
+import org.example.padelback.modules.reservas.domain.model.disponibilidad.Franja;
 import org.example.padelback.modules.reservas.domain.port.AgendaConfigCommandPort;
 import org.example.padelback.modules.reservas.infrastructure.persistence.entity.BloqueoJpaEntity;
 import org.example.padelback.modules.reservas.infrastructure.persistence.entity.CanchaJpaEntity;
 import org.example.padelback.modules.reservas.infrastructure.persistence.entity.ComplejoJpaEntity;
 import org.example.padelback.modules.reservas.infrastructure.persistence.entity.HorarioComplejoJpaEntity;
+import org.example.padelback.modules.reservas.infrastructure.persistence.entity.ReservaJpaEntity;
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.BloqueoJpaRepository;
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.CanchaJpaRepository;
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.ComplejoJpaRepository;
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.HorarioComplejoJpaRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,15 +43,26 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AgendaConfigCommandAdapter implements AgendaConfigCommandPort {
 
+    // Mismo predicado "ocupa el slot" que ReservaJpaRepository#OCUPA (no se puede reusar la constante
+    // porque ese repo está fuera de esta ownership; se replica acá para las queries ad-hoc por
+    // EntityManager que necesitan A2: avisar reservas afectadas por un cambio de horarios/bloqueo).
+    private static final String RESERVA_OCUPA = "r.active = true "
+            + "and r.estado <> org.example.padelback.modules.reservas.domain.model.ReservaEstado.CANCELADO "
+            + "and (r.expiraEn is null or r.expiraEn > :ahora) ";
+
     private final TenantProvider tenantProvider;
     private final ComplejoJpaRepository complejoRepo;
     private final CanchaJpaRepository canchaRepo;
     private final HorarioComplejoJpaRepository horarioRepo;
     private final BloqueoJpaRepository bloqueoRepo;
+    private final Clock clock;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @Override
     @Transactional
-    public void guardarHorarios(boolean breakOn, LocalTime breakFrom, LocalTime breakTo,
+    public List<AgendaConfig.ReservaAfectada> guardarHorarios(boolean breakOn, LocalTime breakFrom, LocalTime breakTo,
                                 List<AgendaConfig.DiaConfig> week) {
         Long tenantId = tenantProvider.requireTenantId();
         ComplejoJpaEntity complejo = resolverComplejo(tenantId);
@@ -50,25 +70,101 @@ public class AgendaConfigCommandAdapter implements AgendaConfigCommandPort {
         horarioRepo.deleteByTenantIdAndComplejoId(tenantId, complejo.getId());
         horarioRepo.flush();
 
+        // Franjas efectivamente guardadas por día de semana: se arman en la misma pasada que se
+        // insertan, para después calcular qué reservas quedaron fuera (A2).
+        Map<Integer, List<Franja>> franjasPorDia = new HashMap<>();
+
         for (AgendaConfig.DiaConfig d : week) {
             if (!d.open()) {
                 continue;
             }
             LocalTime from = d.from();
             LocalTime to = d.to();
-            if (from == null || to == null || !from.isBefore(to)) {
+            if (from == null || to == null) {
                 throw new IllegalArgumentException("Franja inválida para el día " + d.diaSemana() + ": from < to requerido");
             }
-            boolean conBreak = breakOn && breakFrom != null && breakTo != null
-                    && breakFrom.isBefore(breakTo)
-                    && breakFrom.isAfter(from) && breakTo.isBefore(to);
-            if (conBreak) {
-                insertarFranja(complejo.getId(), d.diaSemana(), from, breakFrom);
-                insertarFranja(complejo.getId(), d.diaSemana(), breakTo, to);
-            } else {
-                insertarFranja(complejo.getId(), d.diaSemana(), from, to);
+            List<Franja> franjasDelDia;
+            try {
+                franjasDelDia = franjasDelDia(from, to, breakOn, breakFrom, breakTo);
+            } catch (IllegalArgumentException ex) {
+                throw new IllegalArgumentException("Franja inválida para el día " + d.diaSemana() + ": from < to requerido");
+            }
+            for (Franja f : franjasDelDia) {
+                insertarFranja(complejo.getId(), d.diaSemana(), f.inicio(), f.fin());
+            }
+            franjasPorDia.put(d.diaSemana(), franjasDelDia);
+        }
+
+        return reservasAfectadasPorHorarios(tenantId, complejo.getId(), franjasPorDia);
+    }
+
+    /**
+     * Traduce el horario de UN día (apertura {@code from}-{@code to} + break común del complejo) a las
+     * franjas efectivas a persistir. Función pura (sin persistencia) para poder testearla directo.
+     *
+     * <p>A1: la intersección del break con la franja de este día es REAL — efectivo =
+     * {@code [max(breakFrom, from), min(breakTo, to)]} — y si es no vacía, la franja se parte en
+     * {@code [from, breakFromEfectivo)} + {@code [breakToEfectivo, to)}, descartando el lado que quede
+     * vacío. Antes se exigía que el break cayera COMPLETO dentro de la franja
+     * ({@code breakFrom > from && breakTo < to}), así que un break que arrancaba justo en la apertura o
+     * terminaba justo en el cierre se descartaba ENTERO y se vendían turnos durante el descanso.
+     *
+     * <p>M-medianoche: {@code "00:00"} en {@code to} o en {@code breakTo} se interpreta como cierre a
+     * medianoche (24:00, el cierre cae al terminar el día), nunca como una apertura a las 00:00.
+     *
+     * @throws IllegalArgumentException si {@code from}/{@code to} no describen una franja válida (from &lt; to)
+     */
+    static List<Franja> franjasDelDia(LocalTime from, LocalTime to, boolean breakOn,
+                                      LocalTime breakFrom, LocalTime breakTo) {
+        int fromMin = minutosApertura(from);
+        int toMin = minutosCierre(to);
+        if (fromMin >= toMin) {
+            throw new IllegalArgumentException("Franja inválida: from < to requerido");
+        }
+
+        // OJO: la validez del break se compara en minutos (no con LocalTime#isBefore crudo), porque
+        // un breakTo = "00:00" (medianoche = 24:00) compararía como el MENOR horario contra cualquier
+        // breakFrom y el break se descartaría siempre como "inválido".
+        if (breakOn && breakFrom != null && breakTo != null) {
+            int breakFromMin = minutosApertura(breakFrom);
+            int breakToMin = minutosCierre(breakTo);
+            if (breakFromMin >= breakToMin) {
+                return List.of(new Franja(from, to));
+            }
+            int efDesde = Math.max(fromMin, breakFromMin);
+            int efHasta = Math.min(toMin, breakToMin);
+            if (efDesde < efHasta) {
+                // Partimos la franja, descartando el lado que quede vacío (ej. break que arranca en la
+                // apertura → solo queda la tarde; break que termina en el cierre → solo queda la mañana).
+                List<Franja> franjas = new ArrayList<>();
+                if (fromMin < efDesde) {
+                    franjas.add(new Franja(from, horaDesdeMinutos(efDesde)));
+                }
+                if (efHasta < toMin) {
+                    franjas.add(new Franja(horaDesdeMinutos(efHasta), to));
+                }
+                return franjas;
             }
         }
+        return List.of(new Franja(from, to));
+    }
+
+    /** Minutos desde las 00:00 de una hora "de apertura" (00:00 = 0, apertura real a medianoche). */
+    private static int minutosApertura(LocalTime t) {
+        return t.toSecondOfDay() / 60;
+    }
+
+    /**
+     * Minutos desde las 00:00 de una hora "de cierre": {@code 00:00} se interpreta como medianoche
+     * (24:00, el cierre cae al terminar el día), nunca como la apertura del mismo día.
+     */
+    private static int minutosCierre(LocalTime t) {
+        return t.equals(LocalTime.MIDNIGHT) ? 24 * 60 : t.toSecondOfDay() / 60;
+    }
+
+    /** Inversa de {@link #minutosCierre}/{@link #minutosApertura}: 1440 vuelve a ser {@code 00:00}. */
+    private static LocalTime horaDesdeMinutos(int minutos) {
+        return minutos >= 24 * 60 ? LocalTime.MIDNIGHT : LocalTime.ofSecondOfDay(minutos * 60L);
     }
 
     private void insertarFranja(Long complejoId, int diaSemana, LocalTime inicio, LocalTime fin) {
@@ -80,6 +176,54 @@ public class AgendaConfigCommandAdapter implements AgendaConfigCommandPort {
                 .horaFin(fin)
                 .build();
         horarioRepo.save(h);
+    }
+
+    /**
+     * A2: reservas CONFIRMADO/PENDIENTE-vigente y futuras que, con las franjas recién guardadas,
+     * quedan total o parcialmente fuera de la franja de su día de semana (incluido el día que pasó a
+     * cerrado, con lista vacía). El cambio ya se guardó igual: esto es solo la advertencia para que el
+     * panel avise al dueño, calculada en la misma transacción del guardado.
+     */
+    private List<AgendaConfig.ReservaAfectada> reservasAfectadasPorHorarios(Long tenantId, Long complejoId,
+            Map<Integer, List<Franja>> franjasPorDia) {
+        LocalDateTime ahora = LocalDateTime.now(clock);
+        List<ReservaJpaEntity> reservas = reservasActivasFuturas(tenantId, complejoId, ahora);
+        if (reservas.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, String> nombresCancha = nombresCanchaPorId(tenantId, complejoId);
+
+        List<AgendaConfig.ReservaAfectada> afectadas = new ArrayList<>();
+        for (ReservaJpaEntity r : reservas) {
+            LocalDate fecha = r.getInicio().toLocalDate();
+            int diaSemana = fecha.getDayOfWeek().getValue() - 1; // LUNES=0 ... DOMINGO=6
+            List<Franja> franjasDelDia = franjasPorDia.getOrDefault(diaSemana, List.of());
+            boolean cubierta = franjasDelDia.stream().anyMatch(f -> cubreCompleta(f, fecha, r.getInicio(), r.getFin()));
+            if (!cubierta) {
+                afectadas.add(new AgendaConfig.ReservaAfectada(r.getId(), fecha, r.getInicio().toLocalTime(),
+                        nombresCancha.getOrDefault(r.getCanchaId(), "—"), r.getClienteNombre()));
+            }
+        }
+        return afectadas;
+    }
+
+    /** La franja "cubre" la reserva si [inicio, fin) entra entero en ella (cierre "00:00" = medianoche). */
+    private static boolean cubreCompleta(Franja f, LocalDate fecha, LocalDateTime inicio, LocalDateTime fin) {
+        LocalDateTime desdeFranja = fecha.atTime(f.inicio());
+        LocalDateTime hastaFranja = f.fin().equals(LocalTime.MIDNIGHT)
+                ? fecha.plusDays(1).atStartOfDay()
+                : fecha.atTime(f.fin());
+        return !inicio.isBefore(desdeFranja) && !fin.isAfter(hastaFranja);
+    }
+
+    private List<ReservaJpaEntity> reservasActivasFuturas(Long tenantId, Long complejoId, LocalDateTime ahora) {
+        String jpql = "select r from ReservaJpaEntity r where r.tenantId = :tenantId and r.complejoId = :complejoId "
+                + "and " + RESERVA_OCUPA + "and r.inicio > :ahora order by r.inicio asc";
+        return entityManager.createQuery(jpql, ReservaJpaEntity.class)
+                .setParameter("tenantId", tenantId)
+                .setParameter("complejoId", complejoId)
+                .setParameter("ahora", ahora)
+                .getResultList();
     }
 
     @Override
@@ -118,8 +262,16 @@ public class AgendaConfigCommandAdapter implements AgendaConfigCommandPort {
         }
         Long tenantId = tenantProvider.requireTenantId();
         ComplejoJpaEntity complejo = resolverComplejo(tenantId);
+        if (modo == PrecioModo.GENERAL) {
+            complejo.setPrecioHoraGeneral(precioHoraGeneral);
+        } else if (precioHoraGeneral != null) {
+            // POR_CANCHA con un precio general mandado explícitamente: se guarda igual (no se ignora
+            // el dato que vino en el request).
+            complejo.setPrecioHoraGeneral(precioHoraGeneral);
+        }
+        // M3: POR_CANCHA con precioHoraGeneral null → se PRESERVA el precio general ya almacenado (no
+        // se pisa con null). Así GENERAL → POR_CANCHA → GENERAL no pierde el precio general al volver.
         complejo.setPrecioModo(modo);
-        complejo.setPrecioHoraGeneral(precioHoraGeneral);
         complejoRepo.save(complejo);
     }
 
@@ -138,23 +290,28 @@ public class AgendaConfigCommandAdapter implements AgendaConfigCommandPort {
     @Override
     @Transactional
     public void actualizarSena(boolean requiereSena, BigDecimal senaMonto, String senaAlias) {
+        Long tenantId = tenantProvider.requireTenantId();
+        ComplejoJpaEntity complejo = resolverComplejo(tenantId);
+        if (!requiereSena) {
+            // M3: apagar la seña solo cambia el flag; se PRESERVAN el monto y el alias ya cargados
+            // (no se borran), así prender/apagar de nuevo no obliga a recargarlos.
+            complejo.setRequiereSena(false);
+            complejoRepo.save(complejo);
+            return;
+        }
         String alias = senaAlias == null ? null : senaAlias.trim();
         // Si el módulo está prendido necesitamos monto > 0 y un alias: sin eso el cliente no sabe
         // cuánto ni a dónde transferir la seña.
-        if (requiereSena) {
-            if (senaMonto == null || senaMonto.signum() <= 0) {
-                throw new CanchaInvalidaException("Si pedís seña, cargá un monto mayor a 0.");
-            }
-            if (alias == null || alias.isEmpty()) {
-                throw new CanchaInvalidaException("Si pedís seña, cargá el alias donde reciben la transferencia.");
-            }
+        if (senaMonto == null || senaMonto.signum() <= 0) {
+            throw new CanchaInvalidaException("Si pedís seña, cargá un monto mayor a 0.");
+        }
+        if (alias == null || alias.isEmpty()) {
+            throw new CanchaInvalidaException("Si pedís seña, cargá el alias donde reciben la transferencia.");
         }
         validarPrecio(senaMonto);
-        Long tenantId = tenantProvider.requireTenantId();
-        ComplejoJpaEntity complejo = resolverComplejo(tenantId);
-        complejo.setRequiereSena(requiereSena);
+        complejo.setRequiereSena(true);
         complejo.setSenaMonto(senaMonto);
-        complejo.setSenaAlias(alias == null || alias.isEmpty() ? null : alias);
+        complejo.setSenaAlias(alias);
         complejoRepo.save(complejo);
     }
 
@@ -200,26 +357,70 @@ public class AgendaConfigCommandAdapter implements AgendaConfigCommandPort {
 
     @Override
     @Transactional
-    public AgendaConfig.BloqueoItem crearBloqueo(LocalDate fecha, Long canchaId, String motivo) {
+    public List<AgendaConfig.ReservaAfectada> crearBloqueo(LocalDate fecha, Long canchaId, String motivo) {
         Long tenantId = tenantProvider.requireTenantId();
         ComplejoJpaEntity complejo = resolverComplejo(tenantId);
 
-        String canchaNombre = "Todo el complejo";
         if (canchaId != null) {
-            CanchaJpaEntity cancha = canchaRepo.findByTenantIdAndIdAndActiveTrue(tenantId, canchaId)
+            canchaRepo.findByTenantIdAndIdAndActiveTrue(tenantId, canchaId)
                     .orElseThrow(() -> new ComplejoNoResueltoException("Cancha " + canchaId + " no encontrada"));
-            canchaNombre = cancha.getNombre();
         }
 
+        LocalDateTime desde = fecha.atStartOfDay();
+        LocalDateTime hasta = fecha.plusDays(1).atStartOfDay();
         BloqueoJpaEntity bloqueo = BloqueoJpaEntity.builder()
                 .complejoId(complejo.getId())
                 .canchaId(canchaId)
-                .fechaHoraDesde(fecha.atStartOfDay())
-                .fechaHoraHasta(fecha.plusDays(1).atStartOfDay())
+                .fechaHoraDesde(desde)
+                .fechaHoraHasta(hasta)
                 .motivo(motivo)
                 .build();
-        BloqueoJpaEntity saved = bloqueoRepo.save(bloqueo);
-        return new AgendaConfig.BloqueoItem(saved.getId(), fecha, canchaId, canchaNombre, motivo);
+        bloqueoRepo.save(bloqueo);
+
+        return reservasAfectadasPorBloqueo(tenantId, complejo.getId(), canchaId, desde, hasta);
+    }
+
+    /**
+     * A2: reservas activas y futuras del día bloqueado (y de esa cancha, si el bloqueo es por cancha)
+     * que solapan con la ventana bloqueada. El bloqueo se guarda igual: esto es la advertencia,
+     * calculada en la misma transacción de la creación.
+     */
+    private List<AgendaConfig.ReservaAfectada> reservasAfectadasPorBloqueo(Long tenantId, Long complejoId,
+            Long canchaId, LocalDateTime desde, LocalDateTime hasta) {
+        LocalDateTime ahora = LocalDateTime.now(clock);
+        StringBuilder jpql = new StringBuilder(
+                "select r from ReservaJpaEntity r where r.tenantId = :tenantId and r.complejoId = :complejoId "
+                        + "and " + RESERVA_OCUPA + "and r.inicio > :ahora and r.inicio < :hasta and r.fin > :desde");
+        if (canchaId != null) {
+            jpql.append(" and r.canchaId = :canchaId");
+        }
+        jpql.append(" order by r.inicio asc");
+
+        var query = entityManager.createQuery(jpql.toString(), ReservaJpaEntity.class)
+                .setParameter("tenantId", tenantId)
+                .setParameter("complejoId", complejoId)
+                .setParameter("ahora", ahora)
+                .setParameter("desde", desde)
+                .setParameter("hasta", hasta);
+        if (canchaId != null) {
+            query.setParameter("canchaId", canchaId);
+        }
+        List<ReservaJpaEntity> reservas = query.getResultList();
+        if (reservas.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, String> nombresCancha = nombresCanchaPorId(tenantId, complejoId);
+        return reservas.stream()
+                .map(r -> new AgendaConfig.ReservaAfectada(r.getId(), r.getInicio().toLocalDate(),
+                        r.getInicio().toLocalTime(), nombresCancha.getOrDefault(r.getCanchaId(), "—"), r.getClienteNombre()))
+                .toList();
+    }
+
+    /** Nombre de TODAS las canchas no eliminadas del complejo (activas e inactivas), para armar avisos. */
+    private Map<Long, String> nombresCanchaPorId(Long tenantId, Long complejoId) {
+        return canchaRepo.findByTenantIdAndActiveTrue(tenantId).stream()
+                .filter(c -> c.getComplejoId().equals(complejoId))
+                .collect(Collectors.toMap(CanchaJpaEntity::getId, CanchaJpaEntity::getNombre));
     }
 
     @Override
@@ -284,6 +485,8 @@ public class AgendaConfigCommandAdapter implements AgendaConfigCommandPort {
         cancha.setTipoPared(parsearTipoPared(tipoPared));
         cancha.setPrecioHora(precioHora);
         cancha.setColor(limpiar(color));
+        // M1: se respeta el estado que manda el panel (ACTIVO/INACTIVO); null se interpreta como
+        // ACTIVO. No se fuerza ACTIVO acá: una cancha puede pasar a INACTIVO y volver sin perder datos.
         cancha.setEstado(parsearEstado(estado));
         CanchaJpaEntity saved = canchaRepo.save(cancha);
         return toItem(saved);
@@ -310,10 +513,15 @@ public class AgendaConfigCommandAdapter implements AgendaConfigCommandPort {
                 .orElseThrow(() -> new ComplejoNoResueltoException("Complejo " + complejoId + " no encontrado"));
     }
 
+    /**
+     * M1: el próximo orden considera TODAS las canchas no eliminadas del complejo (ACTIVO e
+     * INACTIVO), no solo las ACTIVO — si solo mirara ACTIVO, una cancha pasada a INACTIVO liberaría su
+     * número de orden y una nueva cancha podría terminar duplicándolo.
+     */
     private int siguienteOrden(Long tenantId, Long complejoId) {
-        return canchaRepo
-                .findByTenantIdAndComplejoIdAndEstadoAndActiveTrueOrderByOrdenAsc(tenantId, complejoId, CanchaEstado.ACTIVO)
-                .stream().mapToInt(CanchaJpaEntity::getOrden).max().orElse(0) + 1;
+        return canchaRepo.findByTenantIdAndActiveTrue(tenantId).stream()
+                .filter(c -> c.getComplejoId().equals(complejoId))
+                .mapToInt(CanchaJpaEntity::getOrden).max().orElse(0) + 1;
     }
 
     private static TipoPared parsearTipoPared(String valor) {

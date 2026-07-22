@@ -37,9 +37,10 @@ public class TurnoQueryAdapter implements TurnoQueryPort {
 
         Map<Long, String> canchas = nombresDeCanchas(tenantId);
 
+        // Incluye CONFIRMADO y PENDIENTE vigentes (expira_en > ahora): las señas pendientes ya
+        // retienen la cancha, así que el panel debe mostrarlas (antes solo veía las confirmadas).
         return reservaRepo
-                .findByTenantIdAndEstadoAndActiveTrueAndInicioGreaterThanEqualAndInicioLessThanOrderByInicioAsc(
-                        tenantId, ReservaEstado.CONFIRMADO, desde, hasta)
+                .turnosQueOcupanDelDia(tenantId, LocalDateTime.now(clock), desde, hasta)
                 .stream()
                 .map(r -> new TurnoDelDia(
                         r.getId(), r.getInicio(), r.getFin(), r.getClienteNombre(), r.getClienteWhatsapp(),

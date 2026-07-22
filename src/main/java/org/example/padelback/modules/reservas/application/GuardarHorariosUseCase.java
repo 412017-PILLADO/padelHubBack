@@ -14,8 +14,9 @@ public class GuardarHorariosUseCase {
 
     private final AgendaConfigCommandPort commandPort;
 
-    public void ejecutar(boolean breakOn, LocalTime breakFrom, LocalTime breakTo,
+    /** @return reservas futuras que el cambio de horarios dejó fuera de franja (advertencia, no bloquea el guardado). */
+    public List<AgendaConfig.ReservaAfectada> ejecutar(boolean breakOn, LocalTime breakFrom, LocalTime breakTo,
                          List<AgendaConfig.DiaConfig> week) {
-        commandPort.guardarHorarios(breakOn, breakFrom, breakTo, week);
+        return commandPort.guardarHorarios(breakOn, breakFrom, breakTo, week);
     }
 }

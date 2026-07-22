@@ -16,6 +16,12 @@ spring:
     username: ${DB_USERNAME:padel}
     password: ${DB_PASSWORD:padel}
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      # El pool no debería superar los hilos de Tomcat (TOMCAT_MAX_THREADS): cada request que toca DB
+      # toma una conexión, así que más conexiones que hilos es capacidad ociosa. Mantené
+      # DB_POOL_SIZE <= TOMCAT_MAX_THREADS (y sumá el margen de conexiones que permita el MySQL).
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -41,6 +47,10 @@ management:
         enabled: true
 
 padel:
+  # Zona horaria del negocio (reglas de "ahora" de pared, p. ej. no reservar un horario pasado).
+  zona-negocio: ${PADEL_ZONA_NEGOCIO:America/Argentina/Cordoba}
+  # Retención de reservas: el job de purga borra las que terminaron hace más de estos días.
+  retencion-reservas-dias: ${PADEL_RETENCION_RESERVAS_DIAS:365}
   jwt:
     # Default de dev (>=32 chars para HS256); en prod sobreescribir con env PADEL_JWT_SECRET.
     secret: ${PADEL_JWT_SECRET:padel-dev-secret-change-me-please-min-32-chars-aaaa}
@@ -48,6 +58,9 @@ padel:
     expiration: ${PADEL_JWT_EXPIRATION:2592000000}
   antiabuse:
     max-turnos-por-telefono: 2
+    # Confiar en X-Forwarded-For para la IP del cliente. Dejar en false salvo que haya un proxy/CDN
+    # de confianza adelante que reescriba el header; si no, el cliente lo spoofea y evade el límite.
+    trust-proxy: ${PADEL_TRUST_PROXY:false}
     ip:
       max-por-ventana: 3
       ventana: PT1H

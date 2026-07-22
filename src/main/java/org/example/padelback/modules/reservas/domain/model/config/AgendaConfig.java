@@ -38,4 +38,11 @@ public record AgendaConfig(
 
     /** Datos de contacto/ubicación del complejo que se muestran en la landing pública. */
     public record Contacto(String direccion, String telefono, String whatsapp, String mapaUrl, String instagram) {}
+
+    /**
+     * Una reserva CONFIRMADO/PENDIENTE-vigente y futura que quedó pisada por un cambio de horarios o
+     * un bloqueo recién creado. No es un rechazo (el cambio se guarda igual): es la advertencia que el
+     * panel muestra para que el dueño avise al cliente.
+     */
+    public record ReservaAfectada(Long id, LocalDate fecha, LocalTime hora, String cancha, String cliente) {}
 }

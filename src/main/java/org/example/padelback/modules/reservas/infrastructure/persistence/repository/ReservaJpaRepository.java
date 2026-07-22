@@ -46,6 +46,14 @@ public interface ReservaJpaRepository extends JpaRepository<ReservaJpaEntity, Lo
     List<ReservaJpaEntity> findByTenantIdAndEstadoAndActiveTrueAndInicioGreaterThanEqualAndInicioLessThanOrderByInicioAsc(
             Long tenantId, ReservaEstado estado, LocalDateTime desde, LocalDateTime hasta);
 
+    // --- Panel: turnos del día que OCUPAN (CONFIRMADO + PENDIENTE vigente), ordenados por inicio.
+    // Las pendientes de seña vigentes ya retienen la cancha, así que deben verse en la agenda. ---
+    @Query("select r from ReservaJpaEntity r where r.tenantId = :tenantId "
+            + "and " + OCUPA + "and r.inicio >= :desde and r.inicio < :hasta order by r.inicio asc")
+    List<ReservaJpaEntity> turnosQueOcupanDelDia(@Param("tenantId") Long tenantId,
+            @Param("ahora") LocalDateTime ahora, @Param("desde") LocalDateTime desde,
+            @Param("hasta") LocalDateTime hasta);
+
     // --- Panel: pendientes de seña todavía vigentes (todas las fechas), más urgentes primero ---
     List<ReservaJpaEntity> findByTenantIdAndEstadoAndActiveTrueAndExpiraEnGreaterThanOrderByExpiraEnAsc(
             Long tenantId, ReservaEstado estado, LocalDateTime ahora);
@@ -66,6 +74,21 @@ public interface ReservaJpaRepository extends JpaRepository<ReservaJpaEntity, Lo
     @Modifying
     @Query(value = "DELETE FROM reservas WHERE fin < :cutoff", nativeQuery = true)
     int deleteByFinBefore(@Param("cutoff") LocalDateTime cutoff);
+
+    // --- Anti-doble-reserva (paso previo al insert): cancela las PENDIENTE ya vencidas que solapan
+    // el rango pedido en la cancha. La expiración perezosa ya las ignora para la disponibilidad, pero
+    // como filas siguen siendo estado=PENDIENTE/active=TRUE y por ende chocarían con el UNIQUE index
+    // de respaldo (slot_activo). Al pasarlas a CANCELADO su slot_activo generado vuelve a NULL y libera
+    // el slot para el re-booking. flushAutomatically/clearAutomatically para que el UPDATE impacte en
+    // la DB (y recompute la columna generada) antes del re-chequeo y el insert que siguen. ---
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update ReservaJpaEntity r set r.estado = org.example.padelback.modules.reservas.domain.model.ReservaEstado.CANCELADO "
+            + "where r.tenantId = :tenantId and r.canchaId = :canchaId and r.active = true "
+            + "and r.estado = org.example.padelback.modules.reservas.domain.model.ReservaEstado.PENDIENTE "
+            + "and r.expiraEn < :ahora and r.inicio < :hasta and r.fin > :desde")
+    int cancelarPendientesVencidasSolapadas(@Param("tenantId") Long tenantId, @Param("canchaId") Long canchaId,
+            @Param("ahora") LocalDateTime ahora, @Param("desde") LocalDateTime desde,
+            @Param("hasta") LocalDateTime hasta);
 
     // --- Job de señas: pasa a CANCELADO las pendientes ya vencidas (cosmético; el slot ya se liberó
     // solo por el predicado OCUPA). Nativo y sin scope de tenant: barre todos los tenants. ---
