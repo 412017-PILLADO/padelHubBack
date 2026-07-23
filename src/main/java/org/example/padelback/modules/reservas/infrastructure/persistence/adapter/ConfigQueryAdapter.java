@@ -103,7 +103,7 @@ public class ConfigQueryAdapter implements ConfigQueryPort {
         List<PrecioFranjaInfo> precioFranjas = precioFranjaRepo
                 .findByTenantIdAndComplejoIdAndActiveTrue(tenantId, complejo.getId()).stream()
                 .sorted((a, b) -> a.getHoraDesde().compareTo(b.getHoraDesde()))
-                .map(f -> new PrecioFranjaInfo(f.getHoraDesde(), f.getHoraHasta(), f.getPrecioHora()))
+                .map(f -> new PrecioFranjaInfo(f.getHoraDesde(), f.getHoraHasta(), f.getAjustePorcentaje()))
                 .toList();
 
         return Optional.of(new ConfigPublico(tenantInfo, complejoInfo, complejo.getPasoMinutos(),

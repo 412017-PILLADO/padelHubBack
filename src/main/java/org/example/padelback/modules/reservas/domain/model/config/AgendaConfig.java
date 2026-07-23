@@ -42,7 +42,7 @@ public record AgendaConfig(
      * por igual, aplica todos los días). {@code id} es {@code null} al guardar (replace-all: el
      * comando ignora el id, siempre reemplaza la lista entera).
      */
-    public record PrecioFranjaItem(Long id, LocalTime desde, LocalTime hasta, BigDecimal precioHora) {}
+    public record PrecioFranjaItem(Long id, LocalTime desde, LocalTime hasta, Integer ajustePorcentaje) {}
 
     /** Datos de contacto/ubicación del complejo que se muestran en la landing pública. */
     public record Contacto(String direccion, String telefono, String whatsapp, String mapaUrl, String instagram) {}

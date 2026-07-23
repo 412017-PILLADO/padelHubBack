@@ -311,14 +311,15 @@ public class AgendaConfigCommandAdapter implements AgendaConfigCommandPort {
                     .complejoId(complejo.getId())
                     .horaDesde(f.desde())
                     .horaHasta(f.hasta())
-                    .precioHora(f.precioHora())
+                    .ajustePorcentaje(f.ajustePorcentaje())
                     .build();
             precioFranjaRepo.save(e);
         }
     }
 
     /**
-     * Valida las franjas de precio a guardar (función pura, testeada aparte): {@code precioHora > 0},
+     * Valida las franjas de precio a guardar (función pura, testeada aparte): ajuste porcentual
+     * distinto de 0 en (-100, 300] (a -100 el turno saldría gratis; el tope evita typos absurdos),
      * {@code desde < hasta} (con {@code hasta = "00:00"} interpretado como medianoche/24:00, igual
      * criterio que {@link #franjasDelDia}) y sin solapes entre franjas (comparación en minutos).
      *
@@ -329,8 +330,11 @@ public class AgendaConfigCommandAdapter implements AgendaConfigCommandPort {
             if (f.desde() == null || f.hasta() == null) {
                 throw new CanchaInvalidaException("Franja de precio inválida: desde y hasta son obligatorios");
             }
-            if (f.precioHora() == null || f.precioHora().signum() <= 0) {
-                throw new CanchaInvalidaException("El precio por hora de la franja debe ser mayor a 0");
+            if (f.ajustePorcentaje() == null || f.ajustePorcentaje() == 0) {
+                throw new CanchaInvalidaException("El ajuste de la franja no puede ser 0%");
+            }
+            if (f.ajustePorcentaje() <= -100 || f.ajustePorcentaje() > 300) {
+                throw new CanchaInvalidaException("El ajuste de la franja debe estar entre -99% y +300%");
             }
             if (minutosApertura(f.desde()) >= minutosCierre(f.hasta())) {
                 throw new CanchaInvalidaException("Franja de precio inválida: desde < hasta requerido");

@@ -33,5 +33,5 @@ public record ConfigPublico(
     public record HorarioInfo(int diaSemana, LocalTime horaInicio, LocalTime horaFin) {}
 
     /** Franja horaria con precio especial GENERAL del complejo, sin id (solo lectura pública). */
-    public record PrecioFranjaInfo(LocalTime desde, LocalTime hasta, BigDecimal precioHora) {}
+    public record PrecioFranjaInfo(LocalTime desde, LocalTime hasta, int ajustePorcentaje) {}
 }

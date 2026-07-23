@@ -1,6 +1,5 @@
 package org.example.padelback.modules.reservas.infrastructure.persistence.entity;
 
-import java.math.BigDecimal;
 import java.time.LocalTime;
 
 import jakarta.persistence.Column;
@@ -15,10 +14,11 @@ import lombok.experimental.SuperBuilder;
 import org.example.padelback.infrastructure.persistence.entity.BaseJpaEntity;
 
 /**
- * Franja horaria con precio especial, GENERAL del complejo: pisa el precio habitual de TODAS las
- * canchas por igual (tanto en modo GENERAL como POR_CANCHA de {@code ComplejoJpaEntity}) y aplica
- * todos los días por igual (no es por día de semana, a diferencia de {@link HorarioComplejoJpaEntity}).
- * Un turno paga esta tarifa si su hora de inicio cae dentro de {@code [horaDesde, horaHasta)}.
+ * Franja horaria con ajuste porcentual de precio, GENERAL del complejo: el porcentaje se aplica
+ * sobre el precio original (general o de cada cancha según el modo), así todas las canchas
+ * mantienen su precio relativo. Negativo = descuento, positivo = recargo. Aplica todos los días
+ * por igual (no es por día de semana, a diferencia de {@link HorarioComplejoJpaEntity}). Un turno
+ * la paga si su hora de inicio cae dentro de {@code [horaDesde, horaHasta)}.
  */
 @Entity
 @Table(name = "precio_franjas", indexes = {
@@ -41,6 +41,6 @@ public class PrecioFranjaJpaEntity extends BaseJpaEntity {
     @Column(name = "hora_hasta", nullable = false)
     private LocalTime horaHasta;
 
-    @Column(name = "precio_hora", nullable = false, precision = 10, scale = 2)
-    private BigDecimal precioHora;
+    @Column(name = "ajuste_porcentaje", nullable = false)
+    private Integer ajustePorcentaje;
 }

@@ -93,7 +93,7 @@ public class AgendaConfigController {
     @PutMapping("/precio-franjas")
     public AgendaConfigResponse precioFranjas(@Valid @RequestBody GuardarPrecioFranjasRequest req) {
         List<AgendaConfig.PrecioFranjaItem> franjas = req.franjas().stream()
-                .map(f -> new AgendaConfig.PrecioFranjaItem(null, f.desde(), f.hasta(), f.precioHora()))
+                .map(f -> new AgendaConfig.PrecioFranjaItem(null, f.desde(), f.hasta(), f.ajustePorcentaje()))
                 .toList();
         guardarPrecioFranjas.ejecutar(franjas);
         return AgendaConfigResponse.from(cargar.ejecutar());

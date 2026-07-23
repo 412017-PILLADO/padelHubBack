@@ -160,9 +160,10 @@ class AvailabilityServiceTest {
     // =====================================================================
 
     private static final BigDecimal PRECIO_BASE = new BigDecimal("12000.00");
-    // Distinto del precio de la cancha() de prueba (8000.00) y de PRECIO_BASE, para que el test de
-    // integración distinga sin ambigüedad qué precio ganó en cada slot.
-    private static final BigDecimal PRECIO_FRANJA = new BigDecimal("5000.00");
+    // Descuento del 25%: sobre PRECIO_BASE da 9000 y sobre la cancha() de prueba (8000.00) da
+    // 6000 — resultados distintos entre sí y de las bases, para ver sin ambigüedad qué ganó.
+    private static final int AJUSTE = -25;
+    private static final BigDecimal BASE_CON_AJUSTE = new BigDecimal("9000");
 
     @Test
     void precioEfectivo_sinFranjas_devuelveElPrecioBase() {
@@ -173,16 +174,16 @@ class AvailabilityServiceTest {
 
     @Test
     void precioEfectivo_inicioDentroDeLaFranja_devuelveElPrecioDeLaFranja() {
-        var franjas = List.of(new PrecioFranja(LocalTime.of(15, 0), LocalTime.of(18, 0), PRECIO_FRANJA));
+        var franjas = List.of(new PrecioFranja(LocalTime.of(15, 0), LocalTime.of(18, 0), AJUSTE));
 
         var precio = AvailabilityService.precioEfectivo(PRECIO_BASE, LocalTime.of(16, 30), franjas);
 
-        assertThat(precio).isEqualByComparingTo(PRECIO_FRANJA);
+        assertThat(precio).isEqualByComparingTo(BASE_CON_AJUSTE);
     }
 
     @Test
     void precioEfectivo_inicioFueraDeLaFranja_devuelveElPrecioBase() {
-        var franjas = List.of(new PrecioFranja(LocalTime.of(15, 0), LocalTime.of(18, 0), PRECIO_FRANJA));
+        var franjas = List.of(new PrecioFranja(LocalTime.of(15, 0), LocalTime.of(18, 0), AJUSTE));
 
         var precio = AvailabilityService.precioEfectivo(PRECIO_BASE, LocalTime.of(20, 0), franjas);
 
@@ -191,16 +192,16 @@ class AvailabilityServiceTest {
 
     @Test
     void precioEfectivo_bordeDesde_esInclusivo() {
-        var franjas = List.of(new PrecioFranja(LocalTime.of(15, 0), LocalTime.of(18, 0), PRECIO_FRANJA));
+        var franjas = List.of(new PrecioFranja(LocalTime.of(15, 0), LocalTime.of(18, 0), AJUSTE));
 
         var precio = AvailabilityService.precioEfectivo(PRECIO_BASE, LocalTime.of(15, 0), franjas);
 
-        assertThat(precio).isEqualByComparingTo(PRECIO_FRANJA);
+        assertThat(precio).isEqualByComparingTo(BASE_CON_AJUSTE);
     }
 
     @Test
     void precioEfectivo_bordeHasta_esExclusivo() {
-        var franjas = List.of(new PrecioFranja(LocalTime.of(15, 0), LocalTime.of(18, 0), PRECIO_FRANJA));
+        var franjas = List.of(new PrecioFranja(LocalTime.of(15, 0), LocalTime.of(18, 0), AJUSTE));
 
         var precio = AvailabilityService.precioEfectivo(PRECIO_BASE, LocalTime.of(18, 0), franjas);
 
@@ -210,17 +211,17 @@ class AvailabilityServiceTest {
     @Test
     void precioEfectivo_hastaMedianoche_seTrataComoLasVeinticuatro() {
         // M-medianoche: igual criterio que las franjas de apertura ("00:00" en hasta = 24:00).
-        var franjas = List.of(new PrecioFranja(LocalTime.of(20, 0), LocalTime.MIDNIGHT, PRECIO_FRANJA));
+        var franjas = List.of(new PrecioFranja(LocalTime.of(20, 0), LocalTime.MIDNIGHT, AJUSTE));
 
         assertThat(AvailabilityService.precioEfectivo(PRECIO_BASE, LocalTime.of(23, 30), franjas))
-                .isEqualByComparingTo(PRECIO_FRANJA);
+                .isEqualByComparingTo(BASE_CON_AJUSTE);
         assertThat(AvailabilityService.precioEfectivo(PRECIO_BASE, LocalTime.of(19, 59), franjas))
                 .isEqualByComparingTo(PRECIO_BASE);
     }
 
     @Test
     void calcular_aplicaElPrecioDeFranjaSoloAlSlotQueArrancaDentroDeElla() {
-        var franjas = List.of(new PrecioFranja(LocalTime.of(15, 0), LocalTime.of(18, 0), PRECIO_FRANJA));
+        var franjas = List.of(new PrecioFranja(LocalTime.of(15, 0), LocalTime.of(18, 0), AJUSTE));
         var agendaConFranjaDePrecio = new AgendaDelDia(
                 DIA, 30, List.of(60, 90, 120), 90, false,
                 List.of(new Franja(LocalTime.of(8, 0), LocalTime.of(23, 0))),
@@ -230,10 +231,11 @@ class AvailabilityServiceTest {
         var slots = service.calcular(agendaConFranjaDePrecio, 90, MEDIANOCHE);
 
         // Grilla cada 90' desde las 08:00: 08:00, 09:30, 11:00, 12:30, 14:00, 15:30 … 15:30 cae en la
-        // franja [15:00,18:00), 08:00 no (queda con el precio propio de la cancha(), 8000.00).
+        // franja [15:00,18:00), 08:00 no. El ajuste se aplica SOBRE el precio propio de la cancha
+        // (8000.00): -25% → 6000. Así cada cancha mantiene su precio relativo dentro de la franja.
         assertThat(slotAt(slots, LocalTime.of(8, 0)).canchasLibres().get(0).precioHora())
                 .isEqualByComparingTo(new BigDecimal("8000.00"));
         assertThat(slotAt(slots, LocalTime.of(15, 30)).canchasLibres().get(0).precioHora())
-                .isEqualByComparingTo(PRECIO_FRANJA);
+                .isEqualByComparingTo(new BigDecimal("6000"));
     }
 }

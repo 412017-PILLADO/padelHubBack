@@ -35,7 +35,7 @@ public record AgendaConfigResponse(
     public record CanchaResponse(Long id, String nombre, int orden, boolean techada, String tipoPared,
                                  BigDecimal precioHora, String color, String estado) {}
 
-    public record PrecioFranjaResponse(Long id, String desde, String hasta, BigDecimal precioHora) {}
+    public record PrecioFranjaResponse(Long id, String desde, String hasta, int ajustePorcentaje) {}
 
     public record ContactoResponse(String direccion, String telefono, String whatsapp,
                                    String mapaUrl, String instagram) {}
@@ -52,7 +52,7 @@ public record AgendaConfigResponse(
                         c.precioHora(), c.color(), c.estado()))
                 .toList();
         List<PrecioFranjaResponse> precioFranjas = config.precioFranjas().stream()
-                .map(f -> new PrecioFranjaResponse(f.id(), f.desde().format(HORA), f.hasta().format(HORA), f.precioHora()))
+                .map(f -> new PrecioFranjaResponse(f.id(), f.desde().format(HORA), f.hasta().format(HORA), f.ajustePorcentaje()))
                 .toList();
         AgendaConfig.Contacto c = config.contacto();
         ContactoResponse contacto = new ContactoResponse(

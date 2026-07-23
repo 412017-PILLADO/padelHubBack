@@ -107,7 +107,7 @@ public class AgendaConfigQueryAdapter implements AgendaConfigQueryPort {
                 precioFranjaRepo.findByTenantIdAndComplejoIdAndActiveTrue(tenantId, complejo.getId());
         List<AgendaConfig.PrecioFranjaItem> precioFranjaItems = franjasPrecio.stream()
                 .sorted((a, b) -> a.getHoraDesde().compareTo(b.getHoraDesde()))
-                .map(f -> new AgendaConfig.PrecioFranjaItem(f.getId(), f.getHoraDesde(), f.getHoraHasta(), f.getPrecioHora()))
+                .map(f -> new AgendaConfig.PrecioFranjaItem(f.getId(), f.getHoraDesde(), f.getHoraHasta(), f.getAjustePorcentaje()))
                 .toList();
 
         LocalDate hoy = LocalDate.now();

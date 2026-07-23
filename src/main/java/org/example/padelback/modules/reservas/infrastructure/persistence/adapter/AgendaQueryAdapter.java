@@ -90,7 +90,7 @@ public class AgendaQueryAdapter implements AgendaQueryPort {
         // las franjas de apertura) y pisan el precio de todas las canchas por igual.
         List<PrecioFranja> precioFranjas = precioFranjaRepo
                 .findByTenantIdAndComplejoIdAndActiveTrue(tenantId, complejoId)
-                .stream().map(f -> new PrecioFranja(f.getHoraDesde(), f.getHoraHasta(), f.getPrecioHora())).toList();
+                .stream().map(f -> new PrecioFranja(f.getHoraDesde(), f.getHoraHasta(), f.getAjustePorcentaje())).toList();
 
         // M1: la disponibilidad pública SOLO muestra canchas ACTIVO (a diferencia del panel del
         // dueño, que también lista las INACTIVO para poder reactivarlas) — una cancha INACTIVO no debe

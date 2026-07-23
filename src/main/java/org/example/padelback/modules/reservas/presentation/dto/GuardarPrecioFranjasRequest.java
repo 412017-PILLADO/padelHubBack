@@ -1,6 +1,5 @@
 package org.example.padelback.modules.reservas.presentation.dto;
 
-import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -14,5 +13,6 @@ public record GuardarPrecioFranjasRequest(@NotNull List<@Valid FranjaRequest> fr
     public record FranjaRequest(
             @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime desde,
             @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime hasta,
-            BigDecimal precioHora) {}
+            /** Negativo = descuento (-20 → paga 80%), positivo = recargo. */
+            Integer ajustePorcentaje) {}
 }

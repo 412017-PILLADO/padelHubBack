@@ -1,6 +1,7 @@
 package org.example.padelback.modules.reservas.application;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -104,20 +105,25 @@ public class AvailabilityService {
 
     /**
      * Precio por hora efectivo para un turno que arranca a las {@code inicio}: si cae dentro de
-     * alguna franja de precio especial ({@code [desde, hasta)}, con {@code hasta} = 00:00
-     * interpretado como 24:00 igual que las franjas de apertura) se paga el precio de esa franja
-     * (escalado por duración igual que el precio habitual, fuera de este método); si no cae en
-     * ninguna, se devuelve el {@code precioBase} (ya resuelto aguas arriba según el modo GENERAL o
-     * POR_CANCHA del complejo). Función pura, testeada aparte: es la pieza que garantiza que el
-     * precio que ve el público en la disponibilidad de un slot es EXACTAMENTE el que se cobra.
+     * alguna franja de ajuste porcentual ({@code [desde, hasta)}, con {@code hasta} = 00:00
+     * interpretado como 24:00 igual que las franjas de apertura) se aplica ese porcentaje SOBRE el
+     * {@code precioBase} (ya resuelto aguas arriba según el modo GENERAL o POR_CANCHA), así cada
+     * cancha mantiene su precio relativo: -20 → paga 80%, +15 → paga 115%, redondeado al peso.
+     * Sin precio base configurado no hay nada que ajustar. Función pura, testeada aparte: es la
+     * pieza que garantiza que el precio que ve el público en la disponibilidad es EXACTAMENTE el
+     * que se cobra.
      */
     static BigDecimal precioEfectivo(BigDecimal precioBase, LocalTime inicio, List<PrecioFranja> precioFranjas) {
+        if (precioBase == null) {
+            return null;
+        }
         int inicioMin = inicio.toSecondOfDay() / 60;
         for (PrecioFranja f : precioFranjas) {
             int desdeMin = f.desde().toSecondOfDay() / 60;
             int hastaMin = f.hasta().equals(LocalTime.MIDNIGHT) ? 24 * 60 : f.hasta().toSecondOfDay() / 60;
             if (inicioMin >= desdeMin && inicioMin < hastaMin) {
-                return f.precioHora();
+                return precioBase.multiply(BigDecimal.valueOf(100L + f.ajustePorcentaje()))
+                        .divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP);
             }
         }
         return precioBase;

@@ -36,7 +36,7 @@ public record ConfigResponse(
     public record Horario(int diaSemana, String horaInicio, String horaFin) {}
 
     /** Franja horaria con precio especial GENERAL del complejo (sin id, promo pública "desde $X"). */
-    public record PrecioFranja(String desde, String hasta, BigDecimal precioHora) {}
+    public record PrecioFranja(String desde, String hasta, int ajustePorcentaje) {}
 
     public static ConfigResponse from(ConfigPublico c) {
         return new ConfigResponse(
@@ -61,7 +61,7 @@ public record ConfigResponse(
                         .map(h -> new Horario(h.diaSemana(), h.horaInicio().format(HM), h.horaFin().format(HM)))
                         .toList(),
                 c.precioFranjas().stream()
-                        .map(f -> new PrecioFranja(f.desde().format(HM), f.hasta().format(HM), f.precioHora()))
+                        .map(f -> new PrecioFranja(f.desde().format(HM), f.hasta().format(HM), f.ajustePorcentaje()))
                         .toList());
     }
 }
