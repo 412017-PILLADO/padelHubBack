@@ -22,8 +22,9 @@ public record ConfigResponse(
 
     private static final DateTimeFormatter HM = DateTimeFormatter.ofPattern("HH:mm");
 
-    public record Tenant(String nombre, String colorPrimario, String fuente,
-                         boolean mostrarPrecios, boolean requiereTelefono) {}
+    public record Tenant(String nombre, String colorPrimario, String colorSecundario, String fuente,
+                         String logoUrl, boolean mostrarPrecios, boolean requiereTelefono,
+                         String plantilla) {}
 
     public record Complejo(Long id, String nombre, String direccion, String telefono,
                            String whatsapp, String mapaUrl, String instagram) {}
@@ -35,8 +36,9 @@ public record ConfigResponse(
 
     public static ConfigResponse from(ConfigPublico c) {
         return new ConfigResponse(
-                new Tenant(c.tenant().nombre(), c.tenant().colorPrimario(), c.tenant().fuente(),
-                        c.tenant().mostrarPrecios(), c.tenant().requiereTelefono()),
+                new Tenant(c.tenant().nombre(), c.tenant().colorPrimario(), c.tenant().colorSecundario(),
+                        c.tenant().fuente(), c.tenant().logoUrl(), c.tenant().mostrarPrecios(),
+                        c.tenant().requiereTelefono(), c.tenant().plantilla()),
                 new Complejo(c.complejo().id(), c.complejo().nombre(), c.complejo().direccion(),
                         c.complejo().telefono(), c.complejo().whatsapp(), c.complejo().mapaUrl(),
                         c.complejo().instagram()),

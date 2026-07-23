@@ -25,13 +25,16 @@ public class JwtTokenIssuer implements TokenIssuerPort {
     @Override
     public String emitir(Long tenantId, String email, UsuarioRol rol) {
         Instant now = Instant.now();
-        JwtClaimsSet claims = JwtClaimsSet.builder()
+        JwtClaimsSet.Builder builder = JwtClaimsSet.builder()
                 .subject(email)
                 .issuedAt(now)
                 .expiresAt(now.plus(jwtProperties.expiration(), ChronoUnit.MILLIS))
-                .claim("tenantId", tenantId)
-                .claim("roles", List.of(rol.name()))
-                .build();
+                .claim("roles", List.of(rol.name()));
+        // El super-admin de plataforma no pertenece a un tenant: sin claim tenantId no se setea contexto.
+        if (tenantId != null) {
+            builder.claim("tenantId", tenantId);
+        }
+        JwtClaimsSet claims = builder.build();
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
         return jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
     }

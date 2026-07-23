@@ -59,7 +59,10 @@ public class AvailabilityService {
                 // grilla de inicios es siempre la del turno principal y la ventana es la duración
                 // pedida. El último inicio es el que entra entero (con su duración) en la franja.
                 int inicioMin = f.inicio().toSecondOfDay() / 60;
-                int finMin = f.fin().toSecondOfDay() / 60;
+                // Cierre a medianoche: el front manda "00:00" para "cierra a las 24:00" (mismo día),
+                // no para "abre a las 00:00". Sin este caso especial, toSecondOfDay()/60 daría 0 y la
+                // franja quedaría con 0 minutos de largo (inicioMin > finMin, sin turnos).
+                int finMin = f.fin().equals(LocalTime.MIDNIGHT) ? 24 * 60 : f.fin().toSecondOfDay() / 60;
                 for (int m = inicioMin; m + duracion <= finMin; m += paso) {
                     LocalTime t = LocalTime.ofSecondOfDay(m * 60L);
                     LocalDateTime ini = LocalDateTime.of(agenda.fecha(), t);

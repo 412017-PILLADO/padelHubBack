@@ -19,8 +19,9 @@ public record ConfigPublico(
         List<CanchaInfo> canchas,
         List<HorarioInfo> horarios) {
 
-    public record TenantInfo(String nombre, String colorPrimario, String fuente,
-                             boolean mostrarPrecios, boolean requiereTelefono) {}
+    public record TenantInfo(String nombre, String colorPrimario, String colorSecundario, String fuente,
+                             String logoUrl, boolean mostrarPrecios, boolean requiereTelefono,
+                             String plantilla) {}
 
     public record ComplejoInfo(Long id, String nombre, String direccion, String telefono,
                                String whatsapp, String mapaUrl, String instagram) {}

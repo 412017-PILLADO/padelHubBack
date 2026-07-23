@@ -5,6 +5,8 @@ import jakarta.validation.Valid;
 
 import org.example.padelback.domain.exception.TenantNotResolvedException;
 import org.example.padelback.modules.auth.application.LoginUseCase;
+import org.example.padelback.modules.auth.domain.exception.CredencialesInvalidasException;
+import org.example.padelback.modules.auth.infrastructure.security.LoginThrottle;
 import org.example.padelback.modules.auth.presentation.dto.LoginRequest;
 import org.example.padelback.modules.auth.presentation.dto.LoginResponse;
 import org.example.padelback.modules.auth.presentation.dto.MeResponse;
@@ -28,14 +30,23 @@ public class AuthController {
     private final LoginUseCase loginUseCase;
     private final PublicTenantResolver tenantResolver;
     private final TenantJpaRepository tenantRepository;
+    private final LoginThrottle throttle;
 
     @PostMapping("/login")
     public LoginResponse login(@Valid @RequestBody LoginRequest req, HttpServletRequest http) {
         Long tenantId = tenantResolver
                 .resolve(http.getHeader(PublicTenantContextFilter.TENANT_HEADER), http.getServerName())
                 .orElseThrow(() -> new TenantNotResolvedException("Tenant no resuelto para el host"));
-        var result = loginUseCase.ejecutar(tenantId, req.email(), req.password());
-        return new LoginResponse(result.token(), result.expiresIn());
+        String ip = http.getRemoteAddr();
+        throttle.assertNotLocked(tenantId, req.email(), ip);
+        try {
+            var result = loginUseCase.ejecutar(tenantId, req.email(), req.password());
+            throttle.recordSuccess(tenantId, req.email());
+            return new LoginResponse(result.token(), result.expiresIn());
+        } catch (CredencialesInvalidasException ex) {
+            throttle.recordFailure(tenantId, req.email(), ip);
+            throw ex;
+        }
     }
 
     @GetMapping("/me")

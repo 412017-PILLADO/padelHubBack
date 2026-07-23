@@ -130,4 +130,23 @@ class AvailabilityServiceTest {
     private static SlotDisponibilidad slotAt(List<SlotDisponibilidad> slots, LocalTime hora) {
         return slots.stream().filter(s -> s.hora().equals(hora)).findFirst().orElseThrow();
     }
+
+    @Test
+    void franjaQueCierraAMedianoche_seTrataComoLasVeinticuatro_ultimoInicioEntraEnteroAntesDelCierre() {
+        // M-medianoche: el front manda "00:00" como cierre de franja significando "24:00" (mismo día),
+        // no la apertura. Con turno principal fino (30') anclado a las 20:00, la grilla llega hasta
+        // 22:30 (22:30 + 90' = 00:00 exacto); antes del fix, "00:00" se leía como minuto 0 y la franja
+        // quedaba vacía (0 slots) pese a tener 4hs reales de apertura.
+        var agendaMedianoche = new AgendaDelDia(
+                DIA, 30, List.of(60, 90, 120), 30, false,
+                List.of(new Franja(LocalTime.of(20, 0), LocalTime.MIDNIGHT)),
+                List.of(new AgendaCancha(cancha(1, "C1"), List.of())));
+
+        var slots = service.calcular(agendaMedianoche, 90, MEDIANOCHE);
+
+        assertThat(slots).isNotEmpty();
+        assertThat(slots.get(0).hora()).isEqualTo(LocalTime.of(20, 0));
+        assertThat(ultimaHora(slots)).isEqualTo(LocalTime.of(22, 30));
+        assertThat(slots).allMatch(SlotDisponibilidad::disponible);
+    }
 }

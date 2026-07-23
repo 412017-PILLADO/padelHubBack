@@ -20,6 +20,7 @@ import org.example.padelback.modules.reservas.infrastructure.persistence.entity.
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.CanchaJpaRepository;
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.ComplejoJpaRepository;
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.HorarioComplejoJpaRepository;
+import org.example.padelback.modules.tenant.infrastructure.persistence.TenantLogoStore;
 import org.example.padelback.modules.tenant.infrastructure.persistence.entity.TenantJpaEntity;
 import org.example.padelback.modules.tenant.infrastructure.persistence.repository.TenantJpaRepository;
 import lombok.RequiredArgsConstructor;
@@ -30,8 +31,12 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ConfigQueryAdapter implements ConfigQueryPort {
 
+    /** Path público que sirve el logo guardado en la base (bytes). */
+    private static final String LOGO_ENDPOINT = "/public/tenant/logo";
+
     private final TenantProvider tenantProvider;
     private final TenantJpaRepository tenantRepo;
+    private final TenantLogoStore logoStore;
     private final ComplejoJpaRepository complejoRepo;
     private final CanchaJpaRepository canchaRepo;
     private final HorarioComplejoJpaRepository horarioRepo;
@@ -55,6 +60,8 @@ public class ConfigQueryAdapter implements ConfigQueryPort {
         }
         TenantJpaEntity tenant = tenantRepo.findById(tenantId).orElseThrow();
 
+        // M1: el config público SOLO muestra canchas ACTIVO (el panel del dueño, en cambio, lista
+        // también las INACTIVO para poder reactivarlas) — la landing no debe ofrecer una cancha inactiva.
         List<CanchaInfo> canchas = canchaRepo
                 .findByTenantIdAndComplejoIdAndEstadoAndActiveTrueOrderByOrdenAsc(tenantId, complejo.getId(), CanchaEstado.ACTIVO)
                 .stream()
@@ -70,8 +77,16 @@ public class ConfigQueryAdapter implements ConfigQueryPort {
                         : a.horaInicio().compareTo(b.horaInicio()))
                 .toList();
 
+        // Si hay logo subido (bytes en base) se sirve por el endpoint público; si no, cae a la URL
+        // externa que el tenant tenga configurada (o null → el front muestra solo el nombre).
+        // El slug va como query param: el <img> no manda X-Tenant y en prod front/back están en
+        // orígenes separados, así el endpoint resuelve el tenant sin depender del host.
+        String logoUrl = logoStore.exists(tenantId)
+                ? LOGO_ENDPOINT + "?tenant=" + tenant.getSlug()
+                : tenant.getLogoUrl();
         TenantInfo tenantInfo = new TenantInfo(tenant.getName(), tenant.getColorPrimario(),
-                tenant.getFuente(), tenant.isMostrarPrecios(), tenant.isRequiereTelefono());
+                tenant.getColorSecundario(), tenant.getFuente(), logoUrl, tenant.isMostrarPrecios(),
+                tenant.isRequiereTelefono(), tenant.getPlantilla());
         ComplejoInfo complejoInfo = new ComplejoInfo(complejo.getId(), complejo.getNombre(), complejo.getDireccion(),
                 complejo.getTelefono(), complejo.getWhatsapp(), complejo.getMapaUrl(), complejo.getInstagram());
 

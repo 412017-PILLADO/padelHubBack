@@ -24,6 +24,7 @@ import org.example.padelback.modules.reservas.presentation.dto.AgendaConfigRespo
 import org.example.padelback.modules.reservas.presentation.dto.CrearBloqueoRequest;
 import org.example.padelback.modules.reservas.presentation.dto.CrearCanchaRequest;
 import org.example.padelback.modules.reservas.presentation.dto.GuardarHorariosRequest;
+import org.example.padelback.modules.reservas.presentation.dto.ReservasAfectadasResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -45,6 +46,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AgendaConfigController {
 
     private static final DateTimeFormatter FECHA = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final DateTimeFormatter HORA = DateTimeFormatter.ofPattern("HH:mm");
 
     private final CargarAgendaConfigUseCase cargar;
     private final GuardarHorariosUseCase guardarHorarios;
@@ -62,13 +64,14 @@ public class AgendaConfigController {
     }
 
     @PutMapping("/horarios")
-    public AgendaConfigResponse horarios(@Valid @RequestBody GuardarHorariosRequest req) {
+    public ReservasAfectadasResponse horarios(@Valid @RequestBody GuardarHorariosRequest req) {
         List<AgendaConfig.DiaConfig> week = new ArrayList<>();
         for (GuardarHorariosRequest.DiaRequest d : req.week()) {
             week.add(new AgendaConfig.DiaConfig(d.diaSemana(), d.open(), d.from(), d.to()));
         }
-        guardarHorarios.ejecutar(req.breakOn(), req.breakFrom(), req.breakTo(), week);
-        return AgendaConfigResponse.from(cargar.ejecutar());
+        List<AgendaConfig.ReservaAfectada> afectadas =
+                guardarHorarios.ejecutar(req.breakOn(), req.breakFrom(), req.breakTo(), week);
+        return toReservasAfectadasResponse(afectadas);
     }
 
     @PutMapping("/duraciones")
@@ -104,11 +107,9 @@ public class AgendaConfigController {
     }
 
     @PostMapping("/bloqueos")
-    @ResponseStatus(HttpStatus.CREATED)
-    public AgendaConfigResponse.BloqueoResponse crearBloqueo(@Valid @RequestBody CrearBloqueoRequest req) {
-        AgendaConfig.BloqueoItem item = gestionBloqueos.crear(req.fecha(), req.canchaId(), req.motivo());
-        return new AgendaConfigResponse.BloqueoResponse(
-                item.id(), item.fecha().format(FECHA), item.canchaId(), item.canchaNombre(), item.motivo());
+    public ReservasAfectadasResponse crearBloqueo(@Valid @RequestBody CrearBloqueoRequest req) {
+        List<AgendaConfig.ReservaAfectada> afectadas = gestionBloqueos.crear(req.fecha(), req.canchaId(), req.motivo());
+        return toReservasAfectadasResponse(afectadas);
     }
 
     @DeleteMapping("/bloqueos/{id}")
@@ -144,5 +145,13 @@ public class AgendaConfigController {
     private static AgendaConfigResponse.CanchaResponse toResponse(AgendaConfig.CanchaItem c) {
         return new AgendaConfigResponse.CanchaResponse(c.id(), c.nombre(), c.orden(), c.techada(),
                 c.tipoPared(), c.precioHora(), c.color(), c.estado());
+    }
+
+    private static ReservasAfectadasResponse toReservasAfectadasResponse(List<AgendaConfig.ReservaAfectada> afectadas) {
+        List<ReservasAfectadasResponse.ReservaAfectadaResponse> items = afectadas.stream()
+                .map(r -> new ReservasAfectadasResponse.ReservaAfectadaResponse(
+                        r.id(), r.fecha().format(FECHA), r.hora().format(HORA), r.cancha(), r.cliente()))
+                .toList();
+        return new ReservasAfectadasResponse(items);
     }
 }

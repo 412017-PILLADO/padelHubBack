@@ -3,6 +3,7 @@ package org.example.padelback.infrastructure.config;
 import java.time.Clock;
 import java.time.ZoneId;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -15,11 +16,12 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class TimeConfig {
 
-    /** Complejo de pádel: Córdoba, Argentina (UTC-3). */
-    public static final ZoneId ZONA_NEGOCIO = ZoneId.of("America/Argentina/Cordoba");
+    /** Zona por defecto: Córdoba, Argentina (UTC-3). Configurable por {@code padel.zona-negocio}. */
+    public static final String ZONA_NEGOCIO_DEFAULT = "America/Argentina/Cordoba";
 
+    /** Zona del negocio, inyectada desde {@code padel.zona-negocio} (env {@code PADEL_ZONA_NEGOCIO}). */
     @Bean
-    public Clock clock() {
-        return Clock.system(ZONA_NEGOCIO);
+    public Clock clock(@Value("${padel.zona-negocio:" + ZONA_NEGOCIO_DEFAULT + "}") String zonaNegocio) {
+        return Clock.system(ZoneId.of(zonaNegocio));
     }
 }
