@@ -27,6 +27,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Traduce excepciones de dominio a respuestas HTTP {@code { "error": "..." }}.
@@ -142,6 +143,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleDataIntegrity(DataIntegrityViolationException ex) {
         log.error("Conflicto de integridad de datos", ex);
         return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "Conflicto de datos"));
+    }
+
+    /**
+     * Los controllers/servicios que ya deciden su status con {@link ResponseStatusException}
+     * (plataforma, throttle de login, marca) deben conservarlo: sin este handler, el catch-all
+     * de {@code Exception} de abajo tiene prioridad sobre el resolver default de Spring y
+     * convertiría esos 401/404/409/429 deliberados en 500.
+     */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Map<String, String>> handleResponseStatus(ResponseStatusException ex) {
+        String mensaje = ex.getReason() != null ? ex.getReason() : "Error";
+        return ResponseEntity.status(ex.getStatusCode()).body(Map.of("error", mensaje));
     }
 
     /** A4: red de seguridad final — cualquier excepción no mapeada no debe filtrar detalles al cliente. */
