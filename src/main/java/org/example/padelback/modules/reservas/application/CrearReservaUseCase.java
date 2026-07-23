@@ -59,9 +59,6 @@ public class CrearReservaUseCase {
         }
 
         LocalDateTime ahora = LocalDateTime.now(clock);
-        if (LocalDateTime.of(fecha, hora).isBefore(ahora)) {
-            throw new SlotNoDisponibleException("El horario " + hora + " del " + fecha + " ya pasó");
-        }
 
         if (clientIp != null && !clientIp.isBlank()) {
             Instant desde = clock.instant().minus(props.ip().ventana());
@@ -81,6 +78,31 @@ public class CrearReservaUseCase {
                 throw new LimiteTurnosPorTelefonoException("Ya tenés " + props.maxTurnosPorTelefono()
                         + " turnos reservados con ese WhatsApp. Si necesitás otro o cambiar alguno, escribinos.");
             }
+        }
+
+        return crearEnSlotLibre(complejoResuelto, canchaId, fecha, hora, duracion,
+                clienteNombre, clienteWhatsapp, clientIp, false);
+    }
+
+    /**
+     * Reserva cargada por el dueño desde el panel: sin honeypot ni límites anti-abuso, teléfono
+     * opcional, y nace CONFIRMADA aunque el complejo pida seña (el pago se resolvió del otro lado
+     * del mostrador — p. ej. una seña transferida cuando la ventana ya había vencido).
+     */
+    @Transactional
+    public ReservaCreada ejecutarManual(Long complejoId, Long canchaId, LocalDate fecha, LocalTime hora,
+                                        Integer duracion, String clienteNombre, String clienteWhatsapp) {
+        Long complejoResuelto = resolverComplejo(complejoId);
+        return crearEnSlotLibre(complejoResuelto, canchaId, fecha, hora, duracion,
+                clienteNombre, clienteWhatsapp, null, true);
+    }
+
+    private ReservaCreada crearEnSlotLibre(Long complejoResuelto, Long canchaId, LocalDate fecha,
+                                           LocalTime hora, Integer duracion, String clienteNombre,
+                                           String clienteWhatsapp, String clientIp, boolean manual) {
+        LocalDateTime ahora = LocalDateTime.now(clock);
+        if (LocalDateTime.of(fecha, hora).isBefore(ahora)) {
+            throw new SlotNoDisponibleException("El horario " + hora + " del " + fecha + " ya pasó");
         }
 
         AgendaDelDia agenda = agendaQueryPort.cargarAgendaDelDia(complejoResuelto, fecha)
@@ -103,9 +125,11 @@ public class CrearReservaUseCase {
         LocalDateTime inicio = LocalDateTime.of(fecha, hora);
         LocalDateTime fin = inicio.plusMinutes(duracionEfectiva);
 
-        // Si el complejo pide seña, la reserva nace PENDIENTE y retiene la cancha hasta que venza la
-        // ventana de pago; si no, se confirma directo. La validación de la seña la hace el panel.
-        ReservaEstado estado = agenda.requiereSena() ? ReservaEstado.PENDIENTE : ReservaEstado.CONFIRMADO;
+        // Si el complejo pide seña, la reserva pública nace PENDIENTE y retiene la cancha hasta que
+        // venza la ventana de pago; la manual del dueño se confirma siempre directo.
+        ReservaEstado estado = !manual && agenda.requiereSena()
+                ? ReservaEstado.PENDIENTE
+                : ReservaEstado.CONFIRMADO;
         LocalDateTime expiraEn = estado == ReservaEstado.PENDIENTE
                 ? ahora.plusMinutes(SENA_VENTANA_MINUTOS)
                 : null;
