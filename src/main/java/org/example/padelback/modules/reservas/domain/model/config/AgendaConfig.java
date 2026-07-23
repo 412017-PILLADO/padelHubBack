@@ -26,6 +26,7 @@ public record AgendaConfig(
         List<DiaConfig> week,
         List<BloqueoItem> bloqueos,
         List<CanchaItem> canchas,
+        List<PrecioFranjaItem> precioFranjas,
         Contacto contacto) {
 
     public record DiaConfig(int diaSemana, boolean open, LocalTime from, LocalTime to) {}
@@ -35,6 +36,13 @@ public record AgendaConfig(
 
     public record CanchaItem(Long id, String nombre, int orden, boolean techada, String tipoPared,
                              BigDecimal precioHora, String color, String estado) {}
+
+    /**
+     * Franja horaria con precio especial GENERAL del complejo (pisa el precio de todas las canchas
+     * por igual, aplica todos los días). {@code id} es {@code null} al guardar (replace-all: el
+     * comando ignora el id, siempre reemplaza la lista entera).
+     */
+    public record PrecioFranjaItem(Long id, LocalTime desde, LocalTime hasta, BigDecimal precioHora) {}
 
     /** Datos de contacto/ubicación del complejo que se muestran en la landing pública. */
     public record Contacto(String direccion, String telefono, String whatsapp, String mapaUrl, String instagram) {}

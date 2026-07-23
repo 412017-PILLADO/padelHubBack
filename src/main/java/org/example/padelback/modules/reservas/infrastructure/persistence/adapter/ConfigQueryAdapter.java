@@ -13,6 +13,7 @@ import org.example.padelback.modules.reservas.domain.model.config.ConfigPublico;
 import org.example.padelback.modules.reservas.domain.model.config.ConfigPublico.CanchaInfo;
 import org.example.padelback.modules.reservas.domain.model.config.ConfigPublico.ComplejoInfo;
 import org.example.padelback.modules.reservas.domain.model.config.ConfigPublico.HorarioInfo;
+import org.example.padelback.modules.reservas.domain.model.config.ConfigPublico.PrecioFranjaInfo;
 import org.example.padelback.modules.reservas.domain.model.config.ConfigPublico.TenantInfo;
 import org.example.padelback.modules.reservas.domain.port.ConfigQueryPort;
 import org.example.padelback.modules.reservas.infrastructure.persistence.entity.CanchaJpaEntity;
@@ -20,6 +21,7 @@ import org.example.padelback.modules.reservas.infrastructure.persistence.entity.
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.CanchaJpaRepository;
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.ComplejoJpaRepository;
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.HorarioComplejoJpaRepository;
+import org.example.padelback.modules.reservas.infrastructure.persistence.repository.PrecioFranjaJpaRepository;
 import org.example.padelback.modules.tenant.infrastructure.persistence.TenantLogoStore;
 import org.example.padelback.modules.tenant.infrastructure.persistence.entity.TenantJpaEntity;
 import org.example.padelback.modules.tenant.infrastructure.persistence.repository.TenantJpaRepository;
@@ -40,6 +42,7 @@ public class ConfigQueryAdapter implements ConfigQueryPort {
     private final ComplejoJpaRepository complejoRepo;
     private final CanchaJpaRepository canchaRepo;
     private final HorarioComplejoJpaRepository horarioRepo;
+    private final PrecioFranjaJpaRepository precioFranjaRepo;
 
     @Override
     @Transactional(readOnly = true)
@@ -95,11 +98,19 @@ public class ConfigQueryAdapter implements ConfigQueryPort {
                 ? parseDuraciones(complejo.getDuracionesPermitidas())
                 : List.of(complejo.getDuracionDefault());
 
+        // Franjas de precio especial (generales del complejo), para que la landing muestre la promo
+        // ("desde $X"); sin id porque acá es solo lectura pública.
+        List<PrecioFranjaInfo> precioFranjas = precioFranjaRepo
+                .findByTenantIdAndComplejoIdAndActiveTrue(tenantId, complejo.getId()).stream()
+                .sorted((a, b) -> a.getHoraDesde().compareTo(b.getHoraDesde()))
+                .map(f -> new PrecioFranjaInfo(f.getHoraDesde(), f.getHoraHasta(), f.getPrecioHora()))
+                .toList();
+
         return Optional.of(new ConfigPublico(tenantInfo, complejoInfo, complejo.getPasoMinutos(),
                 duraciones, complejo.getDuracionDefault(), complejo.isPermitirOtrasDuraciones(),
                 complejo.isRequiereSena(), complejo.getSenaMonto(), complejo.getSenaAlias(),
                 complejo.isAutoasignacion(),
-                canchas, horarios));
+                canchas, horarios, precioFranjas));
     }
 
     /** Precio por hora aplicable a la cancha según el modo del complejo (GENERAL o POR_CANCHA). */

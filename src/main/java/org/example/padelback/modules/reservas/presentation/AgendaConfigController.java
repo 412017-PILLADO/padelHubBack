@@ -13,6 +13,7 @@ import org.example.padelback.modules.reservas.application.CargarAgendaConfigUseC
 import org.example.padelback.modules.reservas.application.GestionBloqueosUseCase;
 import org.example.padelback.modules.reservas.application.GestionCanchasUseCase;
 import org.example.padelback.modules.reservas.application.GuardarHorariosUseCase;
+import org.example.padelback.modules.reservas.application.GuardarPrecioFranjasUseCase;
 import org.example.padelback.modules.reservas.domain.model.config.AgendaConfig;
 import org.example.padelback.modules.reservas.presentation.dto.ActualizarAutoasignacionRequest;
 import org.example.padelback.modules.reservas.presentation.dto.ActualizarCanchaRequest;
@@ -24,6 +25,7 @@ import org.example.padelback.modules.reservas.presentation.dto.AgendaConfigRespo
 import org.example.padelback.modules.reservas.presentation.dto.CrearBloqueoRequest;
 import org.example.padelback.modules.reservas.presentation.dto.CrearCanchaRequest;
 import org.example.padelback.modules.reservas.presentation.dto.GuardarHorariosRequest;
+import org.example.padelback.modules.reservas.presentation.dto.GuardarPrecioFranjasRequest;
 import org.example.padelback.modules.reservas.presentation.dto.ReservasAfectadasResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -50,6 +52,7 @@ public class AgendaConfigController {
 
     private final CargarAgendaConfigUseCase cargar;
     private final GuardarHorariosUseCase guardarHorarios;
+    private final GuardarPrecioFranjasUseCase guardarPrecioFranjas;
     private final ActualizarDuracionesUseCase actualizarDuraciones;
     private final ActualizarPreciosUseCase actualizarPrecios;
     private final ActualizarSenaUseCase actualizarSena;
@@ -84,6 +87,15 @@ public class AgendaConfigController {
     @PutMapping("/precios")
     public AgendaConfigResponse precios(@Valid @RequestBody ActualizarPreciosRequest req) {
         actualizarPrecios.ejecutar(req.precioModo(), req.precioHoraGeneral());
+        return AgendaConfigResponse.from(cargar.ejecutar());
+    }
+
+    @PutMapping("/precio-franjas")
+    public AgendaConfigResponse precioFranjas(@Valid @RequestBody GuardarPrecioFranjasRequest req) {
+        List<AgendaConfig.PrecioFranjaItem> franjas = req.franjas().stream()
+                .map(f -> new AgendaConfig.PrecioFranjaItem(null, f.desde(), f.hasta(), f.precioHora()))
+                .toList();
+        guardarPrecioFranjas.ejecutar(franjas);
         return AgendaConfigResponse.from(cargar.ejecutar());
     }
 

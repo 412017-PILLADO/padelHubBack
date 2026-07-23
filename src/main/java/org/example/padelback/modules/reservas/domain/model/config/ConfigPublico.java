@@ -17,7 +17,8 @@ public record ConfigPublico(
         String senaAlias,
         boolean autoasignacion,
         List<CanchaInfo> canchas,
-        List<HorarioInfo> horarios) {
+        List<HorarioInfo> horarios,
+        List<PrecioFranjaInfo> precioFranjas) {
 
     public record TenantInfo(String nombre, String colorPrimario, String colorSecundario, String fuente,
                              String logoUrl, boolean mostrarPrecios, boolean requiereTelefono,
@@ -30,4 +31,7 @@ public record ConfigPublico(
                              BigDecimal precioHora, String color) {}
 
     public record HorarioInfo(int diaSemana, LocalTime horaInicio, LocalTime horaFin) {}
+
+    /** Franja horaria con precio especial GENERAL del complejo, sin id (solo lectura pública). */
+    public record PrecioFranjaInfo(LocalTime desde, LocalTime hasta, BigDecimal precioHora) {}
 }

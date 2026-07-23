@@ -18,7 +18,8 @@ public record ConfigResponse(
         String senaAlias,
         boolean autoasignacion,
         List<Cancha> canchas,
-        List<Horario> horarios) {
+        List<Horario> horarios,
+        List<PrecioFranja> precioFranjas) {
 
     private static final DateTimeFormatter HM = DateTimeFormatter.ofPattern("HH:mm");
 
@@ -33,6 +34,9 @@ public record ConfigResponse(
                          BigDecimal precioHora, String color) {}
 
     public record Horario(int diaSemana, String horaInicio, String horaFin) {}
+
+    /** Franja horaria con precio especial GENERAL del complejo (sin id, promo pública "desde $X"). */
+    public record PrecioFranja(String desde, String hasta, BigDecimal precioHora) {}
 
     public static ConfigResponse from(ConfigPublico c) {
         return new ConfigResponse(
@@ -55,6 +59,9 @@ public record ConfigResponse(
                                 ca.precioHora(), ca.color())).toList(),
                 c.horarios().stream()
                         .map(h -> new Horario(h.diaSemana(), h.horaInicio().format(HM), h.horaFin().format(HM)))
+                        .toList(),
+                c.precioFranjas().stream()
+                        .map(f -> new PrecioFranja(f.desde().format(HM), f.hasta().format(HM), f.precioHora()))
                         .toList());
     }
 }
