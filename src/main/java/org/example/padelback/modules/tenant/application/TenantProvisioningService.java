@@ -30,7 +30,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class TenantProvisioningService {
 
     private static final String BY = "provision";
-    private static final String DEFAULT_COLOR = "#2747ff";
+    private static final String DEFAULT_COLOR = "#0a8a99";
     private static final String DEFAULT_FUENTE = "Hanken Grotesk";
     private static final String DEFAULT_PLANTILLA = "A";
 
