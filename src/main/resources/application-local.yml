@@ -14,3 +14,8 @@ padel:
   platform:
     # Clave para el alta de tenants (POST /platform/tenants, header X-Platform-Key). Solo dev.
     admin-key: dev-platform-key
+  antiabuse:
+    ip:
+      # En dev todo sale de 127.0.0.1: con el límite de prod (3/hora) la suite e2e deja de ser
+      # re-ejecutable a la segunda corrida. Holgado acá, sin tocar el default de prod.
+      max-por-ventana: 1000
