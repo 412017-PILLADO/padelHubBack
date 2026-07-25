@@ -64,3 +64,17 @@ padel:
     ip:
       max-por-ventana: 3
       ventana: PT1H
+  crypto:
+    # Base64 de 32 bytes (AES-256) para cifrar tokens OAuth en reposo. Generar con:
+    # openssl rand -base64 32. Sin key, el módulo de Mercado Pago queda deshabilitado.
+    key: ${PADEL_CRYPTO_KEY:}
+  mercadopago:
+    # Credenciales de la aplicación de plataforma (developers.mercadopago.com). Vacías = módulo off.
+    client-id: ${PADEL_MP_CLIENT_ID:}
+    client-secret: ${PADEL_MP_CLIENT_SECRET:}
+    # Debe coincidir EXACTO con la Redirect URI configurada en la app de MP.
+    redirect-uri: ${PADEL_MP_REDIRECT_URI:http://localhost:8095/public/pagos/mp/oauth/callback}
+    # URL pública https del back para webhooks (prod). Vacía en dev: preferencia sin notification_url.
+    webhook-base-url: ${PADEL_MP_WEBHOOK_BASE_URL:}
+    api-base: ${PADEL_MP_API_BASE:https://api.mercadopago.com}
+    auth-base: ${PADEL_MP_AUTH_BASE:https://auth.mercadopago.com}
