@@ -159,4 +159,20 @@ class MercadoPagoIT extends IntegrationTestBase {
                 "/public/pagos/mp/oauth/callback?code=TG-x&state=chorizo.invalido", null, publicHeaders(), Void.class);
         assertEquals(400, callback.getStatusCode().value());
     }
+
+    @Test
+    void configPublicaExponePagoOnlineSegunConexion() {
+        // sin credencial → false
+        credencialStore.eliminar(TENANT_DEMO);
+        ResponseEntity<Map> antes = exchange(HttpMethod.GET, "/public/config", null, publicHeaders(), Map.class);
+        assertEquals(Boolean.FALSE, antes.getBody().get("pagoOnline"));
+
+        // con credencial vigente → true
+        credencialStore.guardar(new CredencialMp(TENANT_DEMO, "999", "tok", "ref",
+                Instant.now().plus(90, ChronoUnit.DAYS)), "PUB", "s");
+        ResponseEntity<Map> despues = exchange(HttpMethod.GET, "/public/config", null, publicHeaders(), Map.class);
+        assertEquals(Boolean.TRUE, despues.getBody().get("pagoOnline"));
+
+        credencialStore.eliminar(TENANT_DEMO); // limpiar para otros tests
+    }
 }
