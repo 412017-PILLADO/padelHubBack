@@ -43,4 +43,11 @@ class MpOAuthStateCodecTest {
         String roto = state.substring(0, state.length() - 2) + "zz";
         assertThrows(MpCallbackInvalidoException.class, () -> codec.validar(roto));
     }
+
+    @Test
+    void stateConBase64InvalidoEsRechazado() {
+        MpOAuthStateCodec codec = new MpOAuthStateCodec(PROPS, Clock.systemUTC());
+        assertThrows(MpCallbackInvalidoException.class, () -> codec.validar("abc.!!!"));
+        assertThrows(MpCallbackInvalidoException.class, () -> codec.validar("!!!.abc"));
+    }
 }

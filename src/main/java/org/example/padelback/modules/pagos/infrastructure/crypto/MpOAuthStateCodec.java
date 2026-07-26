@@ -49,16 +49,22 @@ public class MpOAuthStateCodec {
         if (state == null || !state.contains(".")) {
             throw new MpCallbackInvalidoException("state ausente o malformado");
         }
-        String[] partes = state.split("\\.", 2);
-        if (!MessageDigest.isEqual(hmac(partes[0]), B64D.decode(partes[1]))) {
-            throw new MpCallbackInvalidoException("firma del state inválida");
+        try {
+            String[] partes = state.split("\\.", 2);
+            if (!MessageDigest.isEqual(hmac(partes[0]), B64D.decode(partes[1]))) {
+                throw new MpCallbackInvalidoException("firma del state inválida");
+            }
+            String[] campos = new String(B64D.decode(partes[0]), StandardCharsets.UTF_8).split("\\|", 3);
+            Instant emitido = Instant.ofEpochSecond(Long.parseLong(campos[2]));
+            if (clock.instant().isAfter(emitido.plus(TTL))) {
+                throw new MpCallbackInvalidoException("el state venció; reintentá la conexión");
+            }
+            return new StateData(Long.parseLong(campos[0]), campos[1]);
+        } catch (MpCallbackInvalidoException e) {
+            throw e;
+        } catch (IllegalArgumentException | ArrayIndexOutOfBoundsException e) {
+            throw new MpCallbackInvalidoException("state malformado");
         }
-        String[] campos = new String(B64D.decode(partes[0]), StandardCharsets.UTF_8).split("\\|", 3);
-        Instant emitido = Instant.ofEpochSecond(Long.parseLong(campos[2]));
-        if (clock.instant().isAfter(emitido.plus(TTL))) {
-            throw new MpCallbackInvalidoException("el state venció; reintentá la conexión");
-        }
-        return new StateData(Long.parseLong(campos[0]), campos[1]);
     }
 
     private byte[] hmac(String data) {
