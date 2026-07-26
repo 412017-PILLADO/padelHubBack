@@ -17,6 +17,8 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -87,5 +89,14 @@ class MercadoPagoClientTest {
         assertEquals("approved", pago.status());
         assertEquals("1-42", pago.externalReference());
         assertEquals(0, new BigDecimal("5000.0").compareTo(pago.transactionAmount()));
+    }
+
+    @Test
+    void respuestaSinCampoRequeridoFallaConMensajeClaro() {
+        server.expect(requestTo("https://api.mp.test/v1/payments/555"))
+                .andRespond(withSuccess("{\"id\":555,\"status\":\"approved\"}", MediaType.APPLICATION_JSON));
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> client.consultarPago("TOKEN-VENDEDOR", "555"));
+        assertTrue(ex.getMessage().contains("transaction_amount"));
     }
 }

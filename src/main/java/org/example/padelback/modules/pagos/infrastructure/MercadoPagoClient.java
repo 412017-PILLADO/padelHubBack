@@ -72,19 +72,17 @@ public class MercadoPagoClient implements MercadoPagoGatewayPort {
         if (notificationUrl != null && !notificationUrl.isBlank()) {
             body.put("notification_url", notificationUrl);
         }
+        body.put("expires", true);
         if (expiraEn != null) {
             // La preferencia vence junto con la reserva PENDIENTE: pagado tarde = link muerto.
-            body.put("expires", true);
             body.put("expiration_date_to",
                     ZonedDateTime.of(expiraEn, clock.getZone()).format(ISO_OFFSET));
-        } else {
-            body.put("expires", true);
         }
         if (backUrl != null && !backUrl.isBlank()) {
             body.put("back_urls", Map.of("success", backUrl, "pending", backUrl, "failure", backUrl));
         }
         Map<String, Object> resp = postJson(props.apiBase() + "/checkout/preferences", accessToken, body);
-        return new PreferenciaSena(String.valueOf(resp.get("id")), (String) resp.get("init_point"));
+        return new PreferenciaSena(campoRequerido(resp, "id"), campoRequerido(resp, "init_point"));
     }
 
     @Override
@@ -95,9 +93,9 @@ public class MercadoPagoClient implements MercadoPagoGatewayPort {
                 .header("Authorization", "Bearer " + accessToken)
                 .retrieve()
                 .body(Map.class);
-        return new PagoMp(String.valueOf(resp.get("id")), (String) resp.get("status"),
+        return new PagoMp(campoRequerido(resp, "id"), campoRequerido(resp, "status"),
                 (String) resp.get("external_reference"),
-                new BigDecimal(String.valueOf(resp.get("transaction_amount"))));
+                new BigDecimal(campoRequerido(resp, "transaction_amount")));
     }
 
     @SuppressWarnings("unchecked")
@@ -111,11 +109,19 @@ public class MercadoPagoClient implements MercadoPagoGatewayPort {
 
     private static TokensMp toTokens(Map<String, Object> r) {
         return new TokensMp(
-                (String) r.get("access_token"),
+                campoRequerido(r, "access_token"),
                 (String) r.get("refresh_token"),
-                String.valueOf(r.get("user_id")),
+                campoRequerido(r, "user_id"),
                 (String) r.get("public_key"),
                 (String) r.get("scope"),
-                Long.parseLong(String.valueOf(r.get("expires_in"))));
+                Long.parseLong(campoRequerido(r, "expires_in")));
+    }
+
+    /** Campo obligatorio de una respuesta de MP: falla con mensaje claro si falta (no NumberFormatException críptica). */
+    private static String campoRequerido(Map<String, Object> resp, String campo) {
+        if (resp == null || resp.get(campo) == null) {
+            throw new IllegalStateException("Respuesta de Mercado Pago sin campo requerido: " + campo);
+        }
+        return String.valueOf(resp.get(campo));
     }
 }
