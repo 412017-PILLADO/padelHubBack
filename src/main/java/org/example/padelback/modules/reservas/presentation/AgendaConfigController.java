@@ -7,6 +7,7 @@ import java.util.List;
 import org.example.padelback.modules.reservas.application.ActualizarAutoasignacionUseCase;
 import org.example.padelback.modules.reservas.application.ActualizarContactoUseCase;
 import org.example.padelback.modules.reservas.application.ActualizarDuracionesUseCase;
+import org.example.padelback.modules.reservas.application.ActualizarPoliticaCancelacionUseCase;
 import org.example.padelback.modules.reservas.application.ActualizarPreciosUseCase;
 import org.example.padelback.modules.reservas.application.ActualizarSenaUseCase;
 import org.example.padelback.modules.reservas.application.CargarAgendaConfigUseCase;
@@ -19,6 +20,7 @@ import org.example.padelback.modules.reservas.presentation.dto.ActualizarAutoasi
 import org.example.padelback.modules.reservas.presentation.dto.ActualizarCanchaRequest;
 import org.example.padelback.modules.reservas.presentation.dto.ActualizarContactoRequest;
 import org.example.padelback.modules.reservas.presentation.dto.ActualizarDuracionesRequest;
+import org.example.padelback.modules.reservas.presentation.dto.ActualizarPoliticaCancelacionRequest;
 import org.example.padelback.modules.reservas.presentation.dto.ActualizarPreciosRequest;
 import org.example.padelback.modules.reservas.presentation.dto.ActualizarSenaRequest;
 import org.example.padelback.modules.reservas.presentation.dto.AgendaConfigResponse;
@@ -56,6 +58,7 @@ public class AgendaConfigController {
     private final ActualizarDuracionesUseCase actualizarDuraciones;
     private final ActualizarPreciosUseCase actualizarPrecios;
     private final ActualizarSenaUseCase actualizarSena;
+    private final ActualizarPoliticaCancelacionUseCase actualizarPoliticaCancelacion;
     private final ActualizarAutoasignacionUseCase actualizarAutoasignacion;
     private final ActualizarContactoUseCase actualizarContacto;
     private final GestionBloqueosUseCase gestionBloqueos;
@@ -102,6 +105,12 @@ public class AgendaConfigController {
     @PutMapping("/sena")
     public AgendaConfigResponse sena(@Valid @RequestBody ActualizarSenaRequest req) {
         actualizarSena.ejecutar(req.requiereSena(), req.senaMonto(), req.senaAlias());
+        return AgendaConfigResponse.from(cargar.ejecutar());
+    }
+
+    @PutMapping("/politica-cancelacion")
+    public AgendaConfigResponse politicaCancelacion(@RequestBody ActualizarPoliticaCancelacionRequest req) {
+        actualizarPoliticaCancelacion.ejecutar(req.texto());
         return AgendaConfigResponse.from(cargar.ejecutar());
     }
 

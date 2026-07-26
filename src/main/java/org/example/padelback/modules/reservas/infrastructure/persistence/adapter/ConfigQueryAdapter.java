@@ -113,6 +113,7 @@ public class ConfigQueryAdapter implements ConfigQueryPort {
                 complejo.isRequiereSena(), complejo.getSenaMonto(), complejo.getSenaAlias(),
                 complejo.isAutoasignacion(),
                 pagoOnlineQuery.disponible(tenantId),
+                complejo.getPoliticaCancelacion(),
                 canchas, horarios, precioFranjas));
     }
 

@@ -47,4 +47,15 @@ class ArrepentimientoIT extends IntegrationTestBase {
                 .filter(a -> codigo.equals(((Map<?, ?>) a).get("codigo"))).findFirst().orElseThrow();
         assertEquals(Boolean.TRUE, item2.get("gestionado"));
     }
+
+    @Test
+    void politicaDeCancelacionSeGuardaYSePublica() {
+        assertEquals(200, exchange(HttpMethod.PUT, "/api/v1/agenda/politica-cancelacion",
+                Map.of("texto", "Seña reembolsable hasta 24 hs antes del turno."),
+                ownerHeaders(), Map.class).getStatusCode().value());
+
+        ResponseEntity<Map> pub = exchange(HttpMethod.GET, "/public/config", null, publicHeaders(), Map.class);
+        assertEquals("Seña reembolsable hasta 24 hs antes del turno.",
+                pub.getBody().get("politicaCancelacion"));
+    }
 }

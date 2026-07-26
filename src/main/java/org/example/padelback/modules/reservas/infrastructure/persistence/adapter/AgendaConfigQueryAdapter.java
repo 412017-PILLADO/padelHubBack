@@ -135,6 +135,7 @@ public class AgendaConfigQueryAdapter implements AgendaConfigQueryPort {
                 complejo.isRequiereSena(),
                 complejo.getSenaMonto(),
                 complejo.getSenaAlias(),
+                complejo.getPoliticaCancelacion(),
                 complejo.isAutoasignacion(),
                 breakOn, breakFrom, breakTo,
                 week, bloqueoItems, canchaItems, precioFranjaItems, contacto);

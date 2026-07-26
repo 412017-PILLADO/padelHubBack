@@ -18,6 +18,7 @@ public record ConfigResponse(
         String senaAlias,
         boolean autoasignacion,
         boolean pagoOnline,
+        String politicaCancelacion,
         List<Cancha> canchas,
         List<Horario> horarios,
         List<PrecioFranja> precioFranjas) {
@@ -56,6 +57,7 @@ public record ConfigResponse(
                 c.senaAlias(),
                 c.autoasignacion(),
                 c.pagoOnline(),
+                c.politicaCancelacion(),
                 c.canchas().stream()
                         .map(ca -> new Cancha(ca.id(), ca.nombre(), ca.orden(), ca.techada(), ca.tipoPared(),
                                 ca.precioHora(), ca.color())).toList(),
