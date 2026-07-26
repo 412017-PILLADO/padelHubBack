@@ -7,6 +7,9 @@ padel:
     ip:
       max-por-ventana: 1000
       ventana: PT1H
+    publico:
+      max-por-ventana: 100000
+      ventana: PT1H
   crypto:
     key: 8yUu8vJp2m4H0aXbW1cQzTt3nRr5sVv7kLl9pDdGgFf=   # key fija de test
   mercadopago:
