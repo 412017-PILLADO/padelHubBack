@@ -51,9 +51,12 @@ public class PurgaReservasViejasJob {
         }
         // Arrepentimientos: los GESTIONADOS viejos se purgan con la misma retención; los pendientes
         // se conservan siempre (trabajo pendiente del dueño y respaldo ante un reclamo).
+        // created_at es un Instant absoluto (UTC), así que el cutoff se calcula como instante — no
+        // reutilizar el LocalDateTime de reservas (hora de pared de la zona del negocio).
+        java.time.Instant cutoffInstant = clock.instant().minus(retencionDias, java.time.temporal.ChronoUnit.DAYS);
         int arrep = jdbc.update(
                 "DELETE FROM arrepentimientos WHERE gestionado = 1 AND created_at < ?",
-                java.sql.Timestamp.valueOf(cutoff));
+                java.sql.Timestamp.from(cutoffInstant));
         if (arrep > 0) {
             log.info("Purga de arrepentimientos gestionados viejos: {} filas", arrep);
         }
