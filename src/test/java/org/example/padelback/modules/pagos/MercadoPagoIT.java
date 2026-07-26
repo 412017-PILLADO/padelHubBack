@@ -3,6 +3,7 @@ package org.example.padelback.modules.pagos;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Map;
 
 import org.example.padelback.modules.pagos.domain.model.CredencialMp;
 import org.example.padelback.modules.pagos.infrastructure.persistence.TenantMercadoPagoStore;
@@ -10,6 +11,9 @@ import org.example.padelback.modules.pagos.infrastructure.persistence.SenaPagoSt
 import org.example.padelback.support.IntegrationTestBase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -24,6 +28,47 @@ class MercadoPagoIT extends IntegrationTestBase {
     SenaPagoStore senaPagoStore;
     @Autowired
     JdbcTemplate jdbc;
+
+    // ---- Stub del gateway: los IT no pegan a MP de verdad ----
+    @org.springframework.boot.test.context.TestConfiguration
+    static class StubMpConfig {
+        static final java.util.concurrent.atomic.AtomicReference<org.example.padelback.modules.pagos.domain.model.PagoMp> PAGO =
+                new java.util.concurrent.atomic.AtomicReference<>();
+
+        @org.springframework.context.annotation.Bean
+        @org.springframework.context.annotation.Primary
+        org.example.padelback.modules.pagos.domain.port.MercadoPagoGatewayPort gatewayStub() {
+            return new org.example.padelback.modules.pagos.domain.port.MercadoPagoGatewayPort() {
+                @Override
+                public org.example.padelback.modules.pagos.domain.model.TokensMp intercambiarCode(String code) {
+                    return new org.example.padelback.modules.pagos.domain.model.TokensMp(
+                            "APP_USR-stub-" + code, "TG-refresh-stub", "999", "PUB-stub",
+                            "offline_access read write", 15552000L);
+                }
+
+                @Override
+                public org.example.padelback.modules.pagos.domain.model.TokensMp refrescar(String refreshToken) {
+                    return new org.example.padelback.modules.pagos.domain.model.TokensMp(
+                            "APP_USR-refrescado", "TG-refresh-2", "999", "PUB-stub",
+                            "offline_access read write", 15552000L);
+                }
+
+                @Override
+                public org.example.padelback.modules.pagos.domain.model.PreferenciaSena crearPreferencia(
+                        String accessToken, String titulo, java.math.BigDecimal monto, String externalReference,
+                        String notificationUrl, java.time.LocalDateTime expiraEn, String backUrl) {
+                    return new org.example.padelback.modules.pagos.domain.model.PreferenciaSena(
+                            "pref-" + externalReference, "https://mp.stub/checkout/" + externalReference);
+                }
+
+                @Override
+                public org.example.padelback.modules.pagos.domain.model.PagoMp consultarPago(
+                        String accessToken, String paymentId) {
+                    return PAGO.get();
+                }
+            };
+        }
+    }
 
     @Test
     void credencialSeGuardaCifradaYSeLeeEnClaro() {
@@ -76,5 +121,42 @@ class MercadoPagoIT extends IntegrationTestBase {
             jdbc.update("DELETE FROM sena_pagos WHERE reserva_id = ?", reservaId);
             jdbc.update("DELETE FROM reservas WHERE id = ?", reservaId);
         }
+    }
+
+    @Test
+    void flujoDeConexionOAuthCompleto() {
+        // 1. el panel pide la URL de autorización
+        HttpHeaders auth = ownerHeaders(); // Bearer del owner + X-Tenant demo (IntegrationTestBase)
+        ResponseEntity<Map> conectar = exchange(HttpMethod.POST, "/api/v1/pagos/mp/conectar",
+                Map.of("returnTo", "http://demo.localhost:4400/admin/config"), auth, Map.class);
+        assertEquals(200, conectar.getStatusCode().value());
+        String url = (String) conectar.getBody().get("url");
+        assertTrue(url.contains("client_id="));
+        String state = url.substring(url.indexOf("state=") + 6).split("&")[0];
+
+        // 2. MP redirige al callback público con code + state (gateway stubbeado)
+        ResponseEntity<Void> callback = exchange(HttpMethod.GET,
+                "/public/pagos/mp/oauth/callback?code=TG-test&state=" + state, null, publicHeaders(), Void.class);
+        assertEquals(302, callback.getStatusCode().value());
+        assertTrue(callback.getHeaders().getLocation().toString()
+                .startsWith("http://demo.localhost:4400/admin/config"));
+
+        // 3. el estado del panel refleja la conexión
+        ResponseEntity<Map> estado = exchange(HttpMethod.GET, "/api/v1/pagos/mp/estado", null, auth, Map.class);
+        assertEquals(Boolean.TRUE, estado.getBody().get("conectado"));
+        assertEquals("999", estado.getBody().get("mpUserId"));
+
+        // 4. desconectar limpia
+        assertEquals(204, exchange(HttpMethod.POST, "/api/v1/pagos/mp/desconectar", null, auth, Void.class)
+                .getStatusCode().value());
+        assertEquals(Boolean.FALSE, exchange(HttpMethod.GET, "/api/v1/pagos/mp/estado", null, auth, Map.class)
+                .getBody().get("conectado"));
+    }
+
+    @Test
+    void callbackConStateAdulteradoNoConecta() {
+        ResponseEntity<Void> callback = exchange(HttpMethod.GET,
+                "/public/pagos/mp/oauth/callback?code=TG-x&state=chorizo.invalido", null, publicHeaders(), Void.class);
+        assertEquals(400, callback.getStatusCode().value());
     }
 }
