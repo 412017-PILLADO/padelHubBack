@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.example.padelback.modules.pagos.domain.model.CredencialMp;
+import org.example.padelback.modules.pagos.domain.model.PagoMp;
 import org.example.padelback.modules.pagos.infrastructure.persistence.TenantMercadoPagoStore;
 import org.example.padelback.modules.pagos.infrastructure.persistence.SenaPagoStore;
 import org.example.padelback.support.IntegrationTestBase;
@@ -213,6 +214,68 @@ class MercadoPagoIT extends IntegrationTestBase {
             assertEquals(409, r.getStatusCode().value());
         } finally {
             setSena(false, null);
+        }
+    }
+
+    @Test
+    void webhookAprobadoConfirmaLaReservaYEsIdempotente() {
+        conectarDemoStub();
+        activarSena();
+        try {
+            long reservaId = crearReservaPendientePorApi(LocalDate.now().plusDays(35));
+            exchange(HttpMethod.POST, "/public/pagos/mp/preferencia",
+                    Map.of("reservaId", reservaId, "backUrl", "http://x/"), publicHeaders(), Map.class);
+
+            StubMpConfig.PAGO.set(new PagoMp("777", "approved", TENANT_DEMO + "-" + reservaId,
+                    new BigDecimal("5000.00")));
+
+            ResponseEntity<Void> wh = exchange(HttpMethod.POST, "/public/pagos/mp/webhook?tenant=demo",
+                    Map.of("type", "payment", "data", Map.of("id", "777")), publicHeaders(), Void.class);
+            assertEquals(200, wh.getStatusCode().value());
+
+            // la reserva quedó CONFIRMADO (visible en el panel de turnos)
+            String estado = jdbc.queryForObject("SELECT estado FROM reservas WHERE id = ?", String.class, reservaId);
+            assertEquals("CONFIRMADO", estado);
+            assertEquals("APROBADO", jdbc.queryForObject(
+                    "SELECT estado FROM sena_pagos WHERE reserva_id = ?", String.class, reservaId));
+
+            // reintento de MP: mismo webhook otra vez → 200 y sin efectos
+            assertEquals(200, exchange(HttpMethod.POST, "/public/pagos/mp/webhook?tenant=demo",
+                    Map.of("type", "payment", "data", Map.of("id", "777")), publicHeaders(), Void.class)
+                    .getStatusCode().value());
+            assertEquals("CONFIRMADO", jdbc.queryForObject(
+                    "SELECT estado FROM reservas WHERE id = ?", String.class, reservaId));
+        } finally {
+            setSena(false, null);
+            credencialStore.eliminar(TENANT_DEMO);
+        }
+    }
+
+    @Test
+    void pagoAprobadoTardeQuedaRegistradoSinConfirmar() {
+        conectarDemoStub();
+        activarSena();
+        try {
+            long reservaId = crearReservaPendientePorApi(LocalDate.now().plusDays(36));
+            exchange(HttpMethod.POST, "/public/pagos/mp/preferencia",
+                    Map.of("reservaId", reservaId, "backUrl", "http://x/"), publicHeaders(), Map.class);
+
+            // vencer la reserva a mano (patrón SenaIT de expiración perezosa)
+            jdbc.update("UPDATE reservas SET expira_en = '2020-01-01 00:00:00' WHERE id = ?", reservaId);
+
+            StubMpConfig.PAGO.set(new PagoMp("888", "approved", TENANT_DEMO + "-" + reservaId,
+                    new BigDecimal("5000.00")));
+            assertEquals(200, exchange(HttpMethod.POST, "/public/pagos/mp/webhook?tenant=demo",
+                    Map.of("type", "payment", "data", Map.of("id", "888")), publicHeaders(), Void.class)
+                    .getStatusCode().value());
+
+            assertEquals("APROBADO_TARDE", jdbc.queryForObject(
+                    "SELECT estado FROM sena_pagos WHERE reserva_id = ?", String.class, reservaId));
+            assertNotEquals("CONFIRMADO", jdbc.queryForObject(
+                    "SELECT estado FROM reservas WHERE id = ?", String.class, reservaId));
+        } finally {
+            setSena(false, null);
+            credencialStore.eliminar(TENANT_DEMO);
         }
     }
 
