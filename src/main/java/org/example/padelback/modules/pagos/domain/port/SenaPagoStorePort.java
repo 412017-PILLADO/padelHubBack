@@ -23,4 +23,7 @@ public interface SenaPagoStorePort {
     boolean pagoYaProcesado(String paymentId);
 
     void registrarPago(long tenantId, long reservaId, String paymentId, String estado);
+
+    /** Estado del pago de seña de cada reserva (solo las que tienen registro). Para el panel. */
+    java.util.Map<Long, String> estadosPorReserva(long tenantId, java.util.List<Long> reservaIds);
 }

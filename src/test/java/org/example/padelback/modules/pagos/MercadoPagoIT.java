@@ -38,6 +38,8 @@ class MercadoPagoIT extends IntegrationTestBase {
     static class StubMpConfig {
         static final java.util.concurrent.atomic.AtomicReference<org.example.padelback.modules.pagos.domain.model.PagoMp> PAGO =
                 new java.util.concurrent.atomic.AtomicReference<>();
+        static final java.util.concurrent.atomic.AtomicReference<String> REEMBOLSADO =
+                new java.util.concurrent.atomic.AtomicReference<>();
 
         @org.springframework.context.annotation.Bean
         @org.springframework.context.annotation.Primary
@@ -69,6 +71,11 @@ class MercadoPagoIT extends IntegrationTestBase {
                 public org.example.padelback.modules.pagos.domain.model.PagoMp consultarPago(
                         String accessToken, String paymentId) {
                     return PAGO.get();
+                }
+
+                @Override
+                public void reembolsarPago(String accessToken, String paymentId) {
+                    REEMBOLSADO.set(paymentId);
                 }
             };
         }
@@ -320,6 +327,40 @@ class MercadoPagoIT extends IntegrationTestBase {
                     "SELECT estado FROM sena_pagos WHERE reserva_id = ?", String.class, reservaId));
             assertEquals("CONFIRMADO", jdbc.queryForObject(
                     "SELECT estado FROM reservas WHERE id = ?", String.class, reservaId));
+        } finally {
+            setSena(false, null);
+            credencialStore.eliminar(TENANT_DEMO);
+        }
+    }
+
+    @Test
+    void devolverSenaReembolsaYMarcaDevuelto() {
+        conectarDemoStub();
+        activarSena();
+        try {
+            long reservaId = crearReservaPendientePorApi(LocalDate.now().plusDays(38));
+            exchange(HttpMethod.POST, "/public/pagos/mp/preferencia",
+                    Map.of("reservaId", reservaId, "backUrl", "http://x/"), publicHeaders(), Map.class);
+            StubMpConfig.PAGO.set(new PagoMp("901", "approved", TENANT_DEMO + "-" + reservaId,
+                    new BigDecimal("5000.00")));
+            exchange(HttpMethod.POST, "/public/pagos/mp/webhook?tenant=demo",
+                    Map.of("type", "payment", "data", Map.of("id", "901")), publicHeaders(), Void.class);
+
+            // estados por reserva para el panel
+            ResponseEntity<Map> estados = exchange(HttpMethod.GET,
+                    "/api/v1/pagos/mp/reservas/estados?ids=" + reservaId, null, ownerHeaders(), Map.class);
+            assertEquals("APROBADO", estados.getBody().get(String.valueOf(reservaId)));
+
+            // devolver
+            assertEquals(204, exchange(HttpMethod.POST, "/api/v1/pagos/mp/reservas/" + reservaId + "/devolver",
+                    null, ownerHeaders(), Void.class).getStatusCode().value());
+            assertEquals("901", StubMpConfig.REEMBOLSADO.get());
+            assertEquals("DEVUELTO", jdbc.queryForObject(
+                    "SELECT estado FROM sena_pagos WHERE reserva_id = ?", String.class, reservaId));
+
+            // devolver dos veces → 409
+            assertEquals(409, exchange(HttpMethod.POST, "/api/v1/pagos/mp/reservas/" + reservaId + "/devolver",
+                    null, ownerHeaders(), Void.class).getStatusCode().value());
         } finally {
             setSena(false, null);
             credencialStore.eliminar(TENANT_DEMO);

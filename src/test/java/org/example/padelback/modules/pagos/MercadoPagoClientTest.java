@@ -92,6 +92,17 @@ class MercadoPagoClientTest {
     }
 
     @Test
+    void reembolsaUnPago() {
+        server.expect(requestTo("https://api.mp.test/v1/payments/555/refunds"))
+                .andExpect(header("Authorization", "Bearer TOKEN-VENDEDOR"))
+                .andExpect(header("X-Idempotency-Key", "refund-555"))
+                .andRespond(withSuccess("{\"id\":9001,\"status\":\"approved\"}", MediaType.APPLICATION_JSON));
+
+        client.reembolsarPago("TOKEN-VENDEDOR", "555"); // no lanza
+        server.verify();
+    }
+
+    @Test
     void respuestaSinCampoRequeridoFallaConMensajeClaro() {
         server.expect(requestTo("https://api.mp.test/v1/payments/555"))
                 .andRespond(withSuccess("{\"id\":555,\"status\":\"approved\"}", MediaType.APPLICATION_JSON));

@@ -8,6 +8,7 @@ import org.example.padelback.modules.pagos.domain.exception.LinkSenaNoDisponible
 import org.example.padelback.modules.pagos.domain.exception.MpCallbackInvalidoException;
 import org.example.padelback.modules.pagos.domain.exception.MpNoConectadoException;
 import org.example.padelback.modules.pagos.domain.exception.MpNoConfiguradoException;
+import org.example.padelback.modules.pagos.domain.exception.SenaNoDevolvibleException;
 import org.example.padelback.modules.reservas.domain.exception.BloqueoNoEncontradoException;
 import org.example.padelback.modules.reservas.domain.exception.CanchaInvalidaException;
 import org.example.padelback.modules.reservas.domain.exception.CanchaNoEncontradaException;
@@ -130,6 +131,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(LinkSenaNoDisponibleException.class)
     public ResponseEntity<Map<String, String>> linkSenaNoDisponible(LinkSenaNoDisponibleException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(SenaNoDevolvibleException.class)
+    public ResponseEntity<Map<String, String>> senaNoDevolvible(SenaNoDevolvibleException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", ex.getMessage()));
     }
 

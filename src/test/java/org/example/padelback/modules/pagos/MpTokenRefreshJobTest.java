@@ -46,6 +46,7 @@ class MpTokenRefreshJobTest {
         public PreferenciaSena crearPreferencia(String a, String t, BigDecimal m, String e, String n,
                 LocalDateTime x, String b) { throw new UnsupportedOperationException(); }
         public PagoMp consultarPago(String a, String p) { throw new UnsupportedOperationException(); }
+        public void reembolsarPago(String a, String p) { throw new UnsupportedOperationException(); }
     }
 
     @Test

@@ -98,6 +98,19 @@ public class MercadoPagoClient implements MercadoPagoGatewayPort {
                 new BigDecimal(campoRequerido(resp, "transaction_amount")));
     }
 
+    @Override
+    public void reembolsarPago(String accessToken, String paymentId) {
+        http.post()
+                .uri(props.apiBase() + "/v1/payments/" + paymentId + "/refunds")
+                .header("Authorization", "Bearer " + accessToken)
+                // MP exige idempotency key en refunds: reintentar no duplica la devolución.
+                .header("X-Idempotency-Key", "refund-" + paymentId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of())
+                .retrieve()
+                .toBodilessEntity();
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> postJson(String url, String bearer, Map<String, Object> body) {
         RestClient.RequestBodySpec spec = http.post().uri(url).contentType(MediaType.APPLICATION_JSON);

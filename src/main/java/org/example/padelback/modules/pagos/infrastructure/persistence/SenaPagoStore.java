@@ -92,4 +92,22 @@ public class SenaPagoStore implements SenaPagoStorePort {
                         + "WHERE tenant_id = ? AND reserva_id = ?",
                 paymentId, estado, Timestamp.from(Instant.now()), tenantId, reservaId);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public java.util.Map<Long, String> estadosPorReserva(long tenantId, java.util.List<Long> reservaIds) {
+        if (reservaIds.isEmpty()) {
+            return java.util.Map.of();
+        }
+        String in = String.join(",", java.util.Collections.nCopies(reservaIds.size(), "?"));
+        Object[] args = new Object[reservaIds.size() + 1];
+        args[0] = tenantId;
+        for (int i = 0; i < reservaIds.size(); i++) {
+            args[i + 1] = reservaIds.get(i);
+        }
+        java.util.Map<Long, String> out = new java.util.HashMap<>();
+        jdbc.query("SELECT reserva_id, estado FROM sena_pagos WHERE tenant_id = ? AND reserva_id IN (" + in + ")",
+                rs -> { out.put(rs.getLong("reserva_id"), rs.getString("estado")); }, args);
+        return out;
+    }
 }

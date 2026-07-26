@@ -15,4 +15,5 @@ public record SenaPago(
     public static final String APROBADO = "APROBADO";
     public static final String APROBADO_TARDE = "APROBADO_TARDE";
     public static final String RECHAZADO = "RECHAZADO";
+    public static final String DEVUELTO = "DEVUELTO";
 }

@@ -24,4 +24,7 @@ public interface MercadoPagoGatewayPort {
                                      LocalDateTime expiraEn, String backUrl);
 
     PagoMp consultarPago(String accessToken, String paymentId);
+
+    /** Reembolso TOTAL del pago (devolución de la seña) en la cuenta MP del tenant. */
+    void reembolsarPago(String accessToken, String paymentId);
 }
