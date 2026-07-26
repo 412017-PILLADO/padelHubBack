@@ -59,15 +59,20 @@ public class SenaPagoStore implements SenaPagoStorePort {
         }
     }
 
+    /**
+     * Primera escritura gana: si dos llamadas concurrentes emiten preferencia para la misma
+     * reserva (ambas pasan el chequeo de idempotencia en memoria antes de que cualquiera
+     * persista), sólo la primera fila queda grabada — la segunda se ignora (INSERT IGNORE por la
+     * unique key de reserva_id). Así el link efectivamente persistido no se pisa a mitad de
+     * camino; el caller relee con {@link #cargarPorReserva} para converger al mismo initPoint.
+     */
     @Override
     @Transactional
     public void guardarPreferencia(long tenantId, long reservaId, String preferenceId,
                                    String initPoint, BigDecimal monto) {
         jdbc.update(
-                "INSERT INTO sena_pagos (reserva_id, tenant_id, preference_id, init_point, estado, monto, updated_at) "
-                        + "VALUES (?, ?, ?, ?, 'PENDIENTE', ?, ?) "
-                        + "ON DUPLICATE KEY UPDATE preference_id = VALUES(preference_id), "
-                        + "init_point = VALUES(init_point), updated_at = VALUES(updated_at)",
+                "INSERT IGNORE INTO sena_pagos (reserva_id, tenant_id, preference_id, init_point, estado, monto, updated_at) "
+                        + "VALUES (?, ?, ?, ?, 'PENDIENTE', ?, ?)",
                 reservaId, tenantId, preferenceId, initPoint, monto, Timestamp.from(Instant.now()));
     }
 

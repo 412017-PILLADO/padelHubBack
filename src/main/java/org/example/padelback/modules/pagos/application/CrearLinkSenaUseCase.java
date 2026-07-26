@@ -69,6 +69,12 @@ public class CrearLinkSenaUseCase {
 
         senaPagos.guardarPreferencia(tenantId, reservaId, pref.preferenceId(), pref.initPoint(),
                 datos.senaMonto());
-        return pref.initPoint();
+        // Primera escritura gana (ver SenaPagoStore.guardarPreferencia): si perdimos la carrera
+        // releemos para devolver el initPoint que realmente quedó persistido. La preferencia que
+        // creamos en MP y no se guardó queda "huérfana" pero es inofensiva: expira sola con la
+        // ventana de la reserva.
+        return senaPagos.cargarPorReserva(tenantId, reservaId)
+                .map(SenaPago::initPoint)
+                .orElse(pref.initPoint());
     }
 }
