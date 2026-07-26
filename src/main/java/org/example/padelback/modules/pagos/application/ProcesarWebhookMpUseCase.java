@@ -35,8 +35,9 @@ import org.springframework.stereotype.Service;
  *       in_process→approved) se descartaría.</li>
  * </ul>
  *
- * <p>Una seña ya {@code APROBADO} nunca se degrada: notificaciones tardías (rechazo de un primer
- * intento de tarjeta llegando después del approved) o un segundo pago duplicado se ignoran.
+ * <p>Una seña en un estado liquidado ({@code APROBADO}, {@code APROBADO_TARDE} o {@code DEVUELTO})
+ * nunca se degrada: notificaciones tardías (rechazo de un primer intento de tarjeta llegando
+ * después del approved) o un segundo pago duplicado se ignoran.
  */
 @Service
 @RequiredArgsConstructor
@@ -47,6 +48,10 @@ public class ProcesarWebhookMpUseCase {
     /** Estados de pago que ya no pueden transicionar a approved. */
     private static final Set<String> ESTADOS_TERMINALES_NEGATIVOS =
             Set.of("rejected", "cancelled", "refunded", "charged_back");
+
+    /** Estados de la seña ya liquidados: ninguna notificación posterior puede pisarlos. */
+    private static final Set<String> ESTADOS_SENA_LIQUIDADOS =
+            Set.of(SenaPago.APROBADO, SenaPago.APROBADO_TARDE, SenaPago.DEVUELTO);
 
     private final PublicTenantResolver tenantResolver;
     private final CredencialMpStorePort credenciales;
@@ -93,10 +98,12 @@ public class ProcesarWebhookMpUseCase {
                 log.warn("Webhook MP: pago {} sin preferencia registrada (reserva {})", paymentId, reservaId);
                 return null;
             }
-            if (SenaPago.APROBADO.equals(senaPago.estado())) {
-                // Nunca degradar una seña ya saldada (notificación tardía o pago duplicado).
-                log.info("Webhook MP: pago {} ignorado, la seña de la reserva {} ya está APROBADO",
-                        paymentId, reservaId);
+            if (ESTADOS_SENA_LIQUIDADOS.contains(senaPago.estado())) {
+                // Ningún estado liquidado (APROBADO/APROBADO_TARDE/DEVUELTO) puede ser pisado por una
+                // notificación tardía: protege el payment_id de la plata que el club retiene y la
+                // auditoría de devoluciones.
+                log.info("Webhook MP: pago {} ignorado, la seña de la reserva {} ya está {}",
+                        paymentId, reservaId, senaPago.estado());
                 return null;
             }
             String status = pago.status() == null ? "" : pago.status().toLowerCase();

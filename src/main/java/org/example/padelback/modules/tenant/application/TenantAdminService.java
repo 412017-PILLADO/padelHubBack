@@ -27,10 +27,15 @@ public class TenantAdminService {
     private final JdbcTemplate jdbc;
     private final PasswordEncoder passwordEncoder;
 
-    /** Tablas tenant-scoped a limpiar en la baja, en orden hijo→padre (respeta las FKs). */
+    /**
+     * Tablas tenant-scoped a limpiar en la baja, en orden hijo→padre (respeta las FKs). V15 agregó
+     * FK tenant_mercadopago→tenants (el DELETE de tenants fallaba para tenants conectados a MP) y
+     * las demás quedaban huérfanas.
+     */
     private static final List<String> CASCADE = List.of(
             "reservas", "bloqueos", "horarios_complejo", "canchas", "complejos",
-            "usuarios", "tenant_dominios", "tenant_logos");
+            "usuarios", "tenant_dominios", "tenant_logos",
+            "arrepentimientos", "sena_pagos", "tenant_mercadopago", "precio_franjas");
 
     /** Fila del listado de clubes. */
     public record TenantResumen(long id, String slug, String name, String status,

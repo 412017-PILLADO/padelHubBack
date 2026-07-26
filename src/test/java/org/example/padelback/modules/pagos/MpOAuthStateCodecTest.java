@@ -40,7 +40,15 @@ class MpOAuthStateCodecTest {
     void stateAdulteradoEsRechazado() {
         MpOAuthStateCodec codec = new MpOAuthStateCodec(PROPS, Clock.systemUTC());
         String state = codec.crear(1L, "http://x/admin");
-        String roto = state.substring(0, state.length() - 2) + "zz";
+        // Tocar un carácter del MEDIO de la firma: tamperear el último carácter puede decodificar
+        // a los mismos bytes (~1/64 de las corridas, porque el último char base64 solo aporta bits
+        // parciales), lo que hacía flakear el test.
+        String[] partes = state.split("\\.", 2);
+        String sig = partes[1];
+        int mid = sig.length() / 2;
+        char tocado = sig.charAt(mid) == 'A' ? 'B' : 'A';
+        String sigRota = sig.substring(0, mid) + tocado + sig.substring(mid + 1);
+        String roto = partes[0] + "." + sigRota;
         assertThrows(MpCallbackInvalidoException.class, () -> codec.validar(roto));
     }
 

@@ -280,6 +280,17 @@ class MercadoPagoIT extends IntegrationTestBase {
                     "SELECT estado FROM sena_pagos WHERE reserva_id = ?", String.class, reservaId));
             assertNotEquals("CONFIRMADO", jdbc.queryForObject(
                     "SELECT estado FROM reservas WHERE id = ?", String.class, reservaId));
+
+            // rechazo tardío de OTRO payment_id → no degrada un estado ya liquidado (APROBADO_TARDE)
+            StubMpConfig.PAGO.set(new PagoMp("889", "rejected", TENANT_DEMO + "-" + reservaId,
+                    new BigDecimal("5000.00")));
+            assertEquals(200, exchange(HttpMethod.POST, "/public/pagos/mp/webhook?tenant=demo",
+                    Map.of("type", "payment", "data", Map.of("id", "889")), publicHeaders(), Void.class)
+                    .getStatusCode().value());
+            assertEquals("APROBADO_TARDE", jdbc.queryForObject(
+                    "SELECT estado FROM sena_pagos WHERE reserva_id = ?", String.class, reservaId));
+            assertEquals("888", jdbc.queryForObject(
+                    "SELECT payment_id FROM sena_pagos WHERE reserva_id = ?", String.class, reservaId));
         } finally {
             setSena(false, null);
             credencialStore.eliminar(TENANT_DEMO);
