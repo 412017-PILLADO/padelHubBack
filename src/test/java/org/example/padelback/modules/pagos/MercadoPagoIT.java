@@ -2,7 +2,10 @@ package org.example.padelback.modules.pagos;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.example.padelback.modules.pagos.domain.model.CredencialMp;
@@ -174,5 +177,91 @@ class MercadoPagoIT extends IntegrationTestBase {
         assertEquals(Boolean.TRUE, despues.getBody().get("pagoOnline"));
 
         credencialStore.eliminar(TENANT_DEMO); // limpiar para otros tests
+    }
+
+    @Test
+    void linkDeSenaIdempotenteYSoloParaPendientes() {
+        conectarDemoStub();
+        activarSena();
+        try {
+            long reservaId = crearReservaPendientePorApi(LocalDate.now().plusDays(33));
+
+            ResponseEntity<Map> r1 = exchange(HttpMethod.POST, "/public/pagos/mp/preferencia",
+                    Map.of("reservaId", reservaId, "backUrl", "http://demo.localhost:4400"), publicHeaders(), Map.class);
+            assertEquals(200, r1.getStatusCode().value());
+            String initPoint = (String) r1.getBody().get("initPoint");
+            assertTrue(initPoint.startsWith("https://mp.stub/checkout/"));
+
+            // idempotencia: la segunda llamada no crea otra preferencia, devuelve la misma.
+            ResponseEntity<Map> r2 = exchange(HttpMethod.POST, "/public/pagos/mp/preferencia",
+                    Map.of("reservaId", reservaId, "backUrl", "http://demo.localhost:4400"), publicHeaders(), Map.class);
+            assertEquals(initPoint, r2.getBody().get("initPoint"));
+        } finally {
+            setSena(false, null);
+            credencialStore.eliminar(TENANT_DEMO);
+        }
+    }
+
+    @Test
+    void sinCredencialElLinkDa409() {
+        credencialStore.eliminar(TENANT_DEMO);
+        activarSena();
+        try {
+            long reservaId = crearReservaPendientePorApi(LocalDate.now().plusDays(34));
+            ResponseEntity<Map> r = exchange(HttpMethod.POST, "/public/pagos/mp/preferencia",
+                    Map.of("reservaId", reservaId, "backUrl", "http://demo.localhost:4400"), publicHeaders(), Map.class);
+            assertEquals(409, r.getStatusCode().value());
+        } finally {
+            setSena(false, null);
+        }
+    }
+
+    // ---- Helpers de armado de una reserva PENDIENTE real (patrón de SenaIT) ----
+
+    /** Conecta al tenant demo con una credencial de MP vigente (stub del gateway igual). */
+    private void conectarDemoStub() {
+        credencialStore.guardar(new CredencialMp(TENANT_DEMO, "111", "APP_USR-token-it", "TG-refresh-it",
+                Instant.now().plus(180, ChronoUnit.DAYS)), "pub-key-it", "offline_access read write");
+    }
+
+    private void activarSena() {
+        setSena(true, 5000);
+    }
+
+    private void setSena(boolean requiere, Integer monto) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("requiereSena", requiere);
+        body.put("senaMonto", monto);
+        body.put("senaAlias", requiere ? "padel.hub.it" : null);
+        ResponseEntity<String> resp = exchange(HttpMethod.PUT, "/api/v1/agenda/sena", body, ownerHeaders(), String.class);
+        assertEquals(200, resp.getStatusCode().value());
+    }
+
+    /** Toma un slot libre real de /public/disponibilidad (no inventa horarios) y reserva ahí. */
+    @SuppressWarnings("unchecked")
+    private long crearReservaPendientePorApi(LocalDate fecha) {
+        ResponseEntity<List> disp = exchange(HttpMethod.GET,
+                "/public/disponibilidad?fecha=" + fecha + "&duracion=90", null, publicHeaders(), List.class);
+        assertEquals(200, disp.getStatusCode().value());
+
+        Map<String, Object> slot = ((List<Map<String, Object>>) disp.getBody()).stream()
+                .filter(s -> Boolean.TRUE.equals(s.get("disponible")))
+                .findFirst().orElseThrow(() -> new AssertionError("Sin slots libres el " + fecha));
+        String hora = (String) slot.get("hora");
+        List<Map<String, Object>> canchasLibres = (List<Map<String, Object>>) slot.get("canchasLibres");
+        long canchaId = ((Number) canchasLibres.get(0).get("id")).longValue();
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("complejoId", 1);
+        body.put("canchaId", canchaId);
+        body.put("fecha", fecha.toString());
+        body.put("hora", hora);
+        body.put("duracion", 90);
+        body.put("clienteNombre", "Tester MP");
+        body.put("clienteWhatsapp", "5493511" + fecha.toEpochDay());
+
+        ResponseEntity<Map> creada = exchange(HttpMethod.POST, "/public/reservas", body, publicHeaders(), Map.class);
+        assertEquals(201, creada.getStatusCode().value());
+        return ((Number) creada.getBody().get("id")).longValue();
     }
 }
