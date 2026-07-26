@@ -279,6 +279,53 @@ class MercadoPagoIT extends IntegrationTestBase {
         }
     }
 
+    @Test
+    void webhookNoTerminalNoQuemaIdempotencia() {
+        conectarDemoStub();
+        activarSena();
+        try {
+            long reservaId = crearReservaPendientePorApi(LocalDate.now().plusDays(37));
+            exchange(HttpMethod.POST, "/public/pagos/mp/preferencia",
+                    Map.of("reservaId", reservaId, "backUrl", "http://x/"), publicHeaders(), Map.class);
+
+            // 1) in_process: no terminal → 200 sin registrar nada (payment_id queda libre)
+            StubMpConfig.PAGO.set(new PagoMp("555", "in_process", TENANT_DEMO + "-" + reservaId,
+                    new BigDecimal("5000.00")));
+            assertEquals(200, exchange(HttpMethod.POST, "/public/pagos/mp/webhook?tenant=demo",
+                    Map.of("type", "payment", "data", Map.of("id", "555")), publicHeaders(), Void.class)
+                    .getStatusCode().value());
+            assertEquals("PENDIENTE", jdbc.queryForObject(
+                    "SELECT estado FROM sena_pagos WHERE reserva_id = ?", String.class, reservaId));
+            assertNull(jdbc.queryForObject(
+                    "SELECT payment_id FROM sena_pagos WHERE reserva_id = ?", String.class, reservaId));
+
+            // 2) el MISMO pago pasa a approved → todavía procesable → confirma
+            StubMpConfig.PAGO.set(new PagoMp("555", "approved", TENANT_DEMO + "-" + reservaId,
+                    new BigDecimal("5000.00")));
+            assertEquals(200, exchange(HttpMethod.POST, "/public/pagos/mp/webhook?tenant=demo",
+                    Map.of("type", "payment", "data", Map.of("id", "555")), publicHeaders(), Void.class)
+                    .getStatusCode().value());
+            assertEquals("CONFIRMADO", jdbc.queryForObject(
+                    "SELECT estado FROM reservas WHERE id = ?", String.class, reservaId));
+            assertEquals("APROBADO", jdbc.queryForObject(
+                    "SELECT estado FROM sena_pagos WHERE reserva_id = ?", String.class, reservaId));
+
+            // 3) rechazo tardío de OTRO pago → no degrada la seña ya APROBADO
+            StubMpConfig.PAGO.set(new PagoMp("556", "rejected", TENANT_DEMO + "-" + reservaId,
+                    new BigDecimal("5000.00")));
+            assertEquals(200, exchange(HttpMethod.POST, "/public/pagos/mp/webhook?tenant=demo",
+                    Map.of("type", "payment", "data", Map.of("id", "556")), publicHeaders(), Void.class)
+                    .getStatusCode().value());
+            assertEquals("APROBADO", jdbc.queryForObject(
+                    "SELECT estado FROM sena_pagos WHERE reserva_id = ?", String.class, reservaId));
+            assertEquals("CONFIRMADO", jdbc.queryForObject(
+                    "SELECT estado FROM reservas WHERE id = ?", String.class, reservaId));
+        } finally {
+            setSena(false, null);
+            credencialStore.eliminar(TENANT_DEMO);
+        }
+    }
+
     // ---- Helpers de armado de una reserva PENDIENTE real (patrón de SenaIT) ----
 
     /** Conecta al tenant demo con una credencial de MP vigente (stub del gateway igual). */
