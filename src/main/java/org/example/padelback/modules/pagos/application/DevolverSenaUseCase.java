@@ -33,6 +33,12 @@ public class DevolverSenaUseCase {
             throw new SenaNoDevolvibleException("La seña no está en estado devolvible (" + sp.estado() + ").");
         }
         CredencialMp cred = credenciales.cargar(tenantId).orElseThrow(MpNoConectadoException::new);
+        // Carrera intencionalmente tolerada: dos llamadas concurrentes a devolver() pasan ambas el
+        // chequeo de arriba antes de que cualquiera reembolse. No hay problema porque MP dedupea
+        // por X-Idempotency-Key ("refund-" + paymentId, ver MercadoPagoClient): misma key en las
+        // dos → un solo reembolso real. Peor caso: ambos callers reciben 204 y registrarPago corre
+        // dos veces escribiendo el mismo estado terminal DEVUELTO — no hay doble cobro ni estado
+        // inconsistente.
         gateway.reembolsarPago(cred.accessToken(), sp.paymentId());
         senaPagos.registrarPago(tenantId, reservaId, sp.paymentId(), SenaPago.DEVUELTO);
     }
