@@ -56,16 +56,25 @@ class MercadoPagoIT extends IntegrationTestBase {
         Long reservaId = jdbc.queryForObject(
                 "SELECT id FROM reservas WHERE cliente_nombre = 'StoreTest'", Long.class);
 
-        var datos = senaPagoStore.datosParaLink(TENANT_DEMO, reservaId).orElseThrow();
-        assertEquals("PENDIENTE", datos.estadoReserva());
+        try {
+            var datos = senaPagoStore.datosParaLink(TENANT_DEMO, reservaId).orElseThrow();
+            assertEquals("PENDIENTE", datos.estadoReserva());
 
-        senaPagoStore.guardarPreferencia(TENANT_DEMO, reservaId, "pref-1", "https://mp/init/1",
-                new BigDecimal("5000.00"));
-        assertEquals("https://mp/init/1",
-                senaPagoStore.cargarPorReserva(TENANT_DEMO, reservaId).orElseThrow().initPoint());
+            senaPagoStore.guardarPreferencia(TENANT_DEMO, reservaId, "pref-1", "https://mp/init/1",
+                    new BigDecimal("5000.00"));
+            assertEquals("https://mp/init/1",
+                    senaPagoStore.cargarPorReserva(TENANT_DEMO, reservaId).orElseThrow().initPoint());
 
-        assertFalse(senaPagoStore.pagoYaProcesado("pay-9"));
-        senaPagoStore.registrarPago(TENANT_DEMO, reservaId, "pay-9", "APROBADO");
-        assertTrue(senaPagoStore.pagoYaProcesado("pay-9"));
+            assertFalse(senaPagoStore.pagoYaProcesado("pay-9"));
+            senaPagoStore.registrarPago(TENANT_DEMO, reservaId, "pay-9", "APROBADO");
+            assertTrue(senaPagoStore.pagoYaProcesado("pay-9"));
+        } finally {
+            // La DB de Testcontainers es compartida entre todas las clases IT (ver javadoc de
+            // IntegrationTestBase): sin este cleanup, la reserva sintética PENDIENTE con
+            // expira_en en 2099 queda "vigente" y puede filtrarse a tests posteriores que listen
+            // pendientes de seña.
+            jdbc.update("DELETE FROM sena_pagos WHERE reserva_id = ?", reservaId);
+            jdbc.update("DELETE FROM reservas WHERE id = ?", reservaId);
+        }
     }
 }
