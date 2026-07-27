@@ -94,6 +94,10 @@ public class ComplejoJpaEntity extends BaseJpaEntity {
     @Column(name = "sena_alias", length = 100)
     private String senaAlias;
 
+    /** Texto libre del dueño (cancelación/devolución), visible en la landing (Res. 424/2020). */
+    @Column(name = "politica_cancelacion", columnDefinition = "TEXT")
+    private String politicaCancelacion;
+
     /**
      * Si está en {@code true}, el sistema asigna una cancha disponible automáticamente (la menos
      * cargada) y la landing no le muestra al cliente el paso de elegir cancha.

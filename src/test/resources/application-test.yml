@@ -7,3 +7,10 @@ padel:
     ip:
       max-por-ventana: 1000
       ventana: PT1H
+  crypto:
+    key: 8yUu8vJp2m4H0aXbW1cQzTt3nRr5sVv7kLl9pDdGgFf=   # key fija de test
+  mercadopago:
+    # Credenciales fake: habilitan el módulo (configurado() == true) para los IT del flujo OAuth.
+    # Nunca se usan contra MP real: el gateway está stubbeado en los tests (StubMpConfig).
+    client-id: test-client-id
+    client-secret: test-client-secret

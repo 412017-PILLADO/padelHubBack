@@ -17,6 +17,8 @@ public interface AgendaConfigCommandPort {
     /** Replace-all: reemplaza TODAS las franjas de precio del complejo (lista vacía = sin franjas). */
     void guardarPrecioFranjas(List<AgendaConfig.PrecioFranjaItem> franjas);
     void actualizarSena(boolean requiereSena, BigDecimal senaMonto, String senaAlias);
+    /** Trim; vacío/null borra la política (queda sin link en la landing). */
+    void actualizarPoliticaCancelacion(String texto);
     void actualizarAutoasignacion(boolean autoasignacion);
     void actualizarContacto(AgendaConfig.Contacto contacto);
     /** @return reservas activas futuras (de esa cancha si el bloqueo es por cancha) que solapan con el bloqueo. */

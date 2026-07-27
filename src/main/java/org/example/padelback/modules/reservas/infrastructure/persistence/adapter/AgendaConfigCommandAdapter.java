@@ -382,6 +382,15 @@ public class AgendaConfigCommandAdapter implements AgendaConfigCommandPort {
 
     @Override
     @Transactional
+    public void actualizarPoliticaCancelacion(String texto) {
+        Long tenantId = tenantProvider.requireTenantId();
+        ComplejoJpaEntity complejo = resolverComplejo(tenantId);
+        complejo.setPoliticaCancelacion(limpiar(texto));
+        complejoRepo.save(complejo);
+    }
+
+    @Override
+    @Transactional
     public void actualizarAutoasignacion(boolean autoasignacion) {
         Long tenantId = tenantProvider.requireTenantId();
         ComplejoJpaEntity complejo = resolverComplejo(tenantId);

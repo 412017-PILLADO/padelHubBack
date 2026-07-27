@@ -16,6 +16,8 @@ public record ConfigPublico(
         BigDecimal senaMonto,
         String senaAlias,
         boolean autoasignacion,
+        boolean pagoOnline,
+        String politicaCancelacion,
         List<CanchaInfo> canchas,
         List<HorarioInfo> horarios,
         List<PrecioFranjaInfo> precioFranjas) {

@@ -21,6 +21,7 @@ public record AgendaConfig(
         boolean requiereSena,
         BigDecimal senaMonto,
         String senaAlias,
+        String politicaCancelacion,
         boolean autoasignacion,
         boolean breakOn, LocalTime breakFrom, LocalTime breakTo,
         List<DiaConfig> week,

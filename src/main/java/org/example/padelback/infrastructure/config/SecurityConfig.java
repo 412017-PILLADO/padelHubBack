@@ -46,7 +46,8 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 @EnableMethodSecurity
 @RequiredArgsConstructor
-@EnableConfigurationProperties({JwtProperties.class, CryptoProperties.class, AntiAbuseProperties.class})
+@EnableConfigurationProperties({JwtProperties.class, CryptoProperties.class, AntiAbuseProperties.class,
+        MercadoPagoProperties.class})
 public class SecurityConfig {
 
     private final JwtTenantResolver jwtTenantResolver;

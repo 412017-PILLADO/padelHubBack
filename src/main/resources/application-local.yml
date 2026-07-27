@@ -11,6 +11,8 @@ logging:
 padel:
   jwt:
     secret: padel-dev-secret-change-me-please-min-32-chars-aaaa
+  crypto:
+    key: 8yUu8vJp2m4H0aXbW1cQzTt3nRr5sVv7kLl9pDdGgFf=   # solo dev
   platform:
     # Clave para el alta de tenants (POST /platform/tenants, header X-Platform-Key). Solo dev.
     admin-key: dev-platform-key

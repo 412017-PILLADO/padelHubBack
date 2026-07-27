@@ -4,6 +4,11 @@ import java.util.Map;
 
 import org.example.padelback.domain.exception.TenantNotResolvedException;
 import org.example.padelback.modules.auth.domain.exception.CredencialesInvalidasException;
+import org.example.padelback.modules.pagos.domain.exception.LinkSenaNoDisponibleException;
+import org.example.padelback.modules.pagos.domain.exception.MpCallbackInvalidoException;
+import org.example.padelback.modules.pagos.domain.exception.MpNoConectadoException;
+import org.example.padelback.modules.pagos.domain.exception.MpNoConfiguradoException;
+import org.example.padelback.modules.pagos.domain.exception.SenaNoDevolvibleException;
 import org.example.padelback.modules.reservas.domain.exception.BloqueoNoEncontradoException;
 import org.example.padelback.modules.reservas.domain.exception.CanchaInvalidaException;
 import org.example.padelback.modules.reservas.domain.exception.CanchaNoEncontradaException;
@@ -107,6 +112,31 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(LimiteReservasPorIpException.class)
     public ResponseEntity<Map<String, String>> handleLimiteIp(LimiteReservasPorIpException ex) {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(MpNoConfiguradoException.class)
+    public ResponseEntity<Map<String, String>> mpNoConfigurado(MpNoConfiguradoException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(MpNoConectadoException.class)
+    public ResponseEntity<Map<String, String>> mpNoConectado(MpNoConectadoException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(MpCallbackInvalidoException.class)
+    public ResponseEntity<Map<String, String>> mpCallbackInvalido(MpCallbackInvalidoException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(LinkSenaNoDisponibleException.class)
+    public ResponseEntity<Map<String, String>> linkSenaNoDisponible(LinkSenaNoDisponibleException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(SenaNoDevolvibleException.class)
+    public ResponseEntity<Map<String, String>> senaNoDevolvible(SenaNoDevolvibleException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", ex.getMessage()));
     }
 
     /**

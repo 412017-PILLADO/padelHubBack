@@ -16,6 +16,7 @@ import org.example.padelback.modules.reservas.domain.model.config.ConfigPublico.
 import org.example.padelback.modules.reservas.domain.model.config.ConfigPublico.PrecioFranjaInfo;
 import org.example.padelback.modules.reservas.domain.model.config.ConfigPublico.TenantInfo;
 import org.example.padelback.modules.reservas.domain.port.ConfigQueryPort;
+import org.example.padelback.modules.reservas.domain.port.PagoOnlineQuery;
 import org.example.padelback.modules.reservas.infrastructure.persistence.entity.CanchaJpaEntity;
 import org.example.padelback.modules.reservas.infrastructure.persistence.entity.ComplejoJpaEntity;
 import org.example.padelback.modules.reservas.infrastructure.persistence.repository.CanchaJpaRepository;
@@ -43,6 +44,7 @@ public class ConfigQueryAdapter implements ConfigQueryPort {
     private final CanchaJpaRepository canchaRepo;
     private final HorarioComplejoJpaRepository horarioRepo;
     private final PrecioFranjaJpaRepository precioFranjaRepo;
+    private final PagoOnlineQuery pagoOnlineQuery;
 
     @Override
     @Transactional(readOnly = true)
@@ -110,6 +112,8 @@ public class ConfigQueryAdapter implements ConfigQueryPort {
                 duraciones, complejo.getDuracionDefault(), complejo.isPermitirOtrasDuraciones(),
                 complejo.isRequiereSena(), complejo.getSenaMonto(), complejo.getSenaAlias(),
                 complejo.isAutoasignacion(),
+                pagoOnlineQuery.disponible(tenantId),
+                complejo.getPoliticaCancelacion(),
                 canchas, horarios, precioFranjas));
     }
 
