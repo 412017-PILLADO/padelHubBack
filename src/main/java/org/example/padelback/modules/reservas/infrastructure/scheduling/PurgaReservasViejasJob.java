@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +29,7 @@ public class PurgaReservasViejasJob {
 
     private final ReservaJpaRepository reservaRepo;
     private final Clock clock;
+    private final JdbcTemplate jdbc;
 
     @Value("${padel.retencion-reservas-dias:365}")
     private long retencionDias;
@@ -40,6 +42,23 @@ public class PurgaReservasViejasJob {
         int borradas = reservaRepo.deleteByFinBefore(cutoff);
         if (borradas > 0) {
             log.info("Purga de reservas viejas: {} reservas con fin anterior a {} eliminadas", borradas, cutoff);
+        }
+        // Los pagos de seña viven atados a su reserva (sin FK: la purga de arriba los dejaría
+        // huérfanos). Se limpian acá, misma corrida, para que la tabla no crezca sin techo.
+        int pagos = jdbc.update("DELETE FROM sena_pagos WHERE reserva_id NOT IN (SELECT id FROM reservas)");
+        if (pagos > 0) {
+            log.info("Purga de sena_pagos huérfanos: {} filas", pagos);
+        }
+        // Arrepentimientos: los GESTIONADOS viejos se purgan con la misma retención; los pendientes
+        // se conservan siempre (trabajo pendiente del dueño y respaldo ante un reclamo).
+        // created_at es un Instant absoluto (UTC), así que el cutoff se calcula como instante — no
+        // reutilizar el LocalDateTime de reservas (hora de pared de la zona del negocio).
+        java.time.Instant cutoffInstant = clock.instant().minus(retencionDias, java.time.temporal.ChronoUnit.DAYS);
+        int arrep = jdbc.update(
+                "DELETE FROM arrepentimientos WHERE gestionado = 1 AND created_at < ?",
+                java.sql.Timestamp.from(cutoffInstant));
+        if (arrep > 0) {
+            log.info("Purga de arrepentimientos gestionados viejos: {} filas", arrep);
         }
     }
 }

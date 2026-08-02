@@ -64,6 +64,10 @@ padel:
     ip:
       max-por-ventana: 3
       ventana: PT1H
+    # Límite de escrituras públicas anónimas (arrepentimiento y link de seña) por IP por ventana.
+    publico:
+      max-por-ventana: ${PADEL_ANTIABUSE_PUBLICO_MAX:20}
+      ventana: ${PADEL_ANTIABUSE_PUBLICO_VENTANA:PT1H}
   crypto:
     # Base64 de 32 bytes (AES-256) para cifrar tokens OAuth en reposo. Generar con:
     # openssl rand -base64 32. Sin key, el módulo de Mercado Pago queda deshabilitado.

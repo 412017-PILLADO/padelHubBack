@@ -37,6 +37,11 @@ public class TenantAdminService {
             "usuarios", "tenant_dominios", "tenant_logos",
             "arrepentimientos", "sena_pagos", "tenant_mercadopago", "precio_franjas");
 
+    /** Expuesta para el IT guardián de cobertura (TenantTablesCoverageIT). */
+    public static List<String> tablasCascade() {
+        return CASCADE;
+    }
+
     /** Fila del listado de clubes. */
     public record TenantResumen(long id, String slug, String name, String status,
                                 String colorPrimario, String colorSecundario, String logoUrl,
