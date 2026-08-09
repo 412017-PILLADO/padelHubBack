@@ -136,7 +136,7 @@ public class TenantAdminService {
 
     private static String parsePlantilla(String s) {
         String up = s.trim().toUpperCase();
-        if (!s.matches("^[A-Ea-e]$")) {
+        if (!up.matches("[ABCDE]")) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Plantilla inválida (A/B/C/D/E).");
         }
         return up;

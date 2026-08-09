@@ -135,6 +135,18 @@ class PlatformIT extends IntegrationTestBase {
         assertThat(configDe("itedit")).contains("\"plantilla\":\"C\"");
     }
 
+    @Test
+    void editarToleraEspaciosYMinusculaEnLaPlantilla() {
+        // parsePlantilla normaliza (trim + upper) antes de validar: " d " debe aceptarse como 'D'.
+        long id = crearClub("ittolerancia", "A");
+
+        ResponseEntity<String> resp = exchange(HttpMethod.PUT, "/platform/tenants/" + id,
+                Map.of("plantilla", " d "), platformHeaders(), String.class);
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(resp.getBody()).contains("\"plantilla\":\"D\"");
+        assertThat(configDe("ittolerancia")).contains("\"plantilla\":\"D\"");
+    }
+
     // ── baja ─────────────────────────────────────────────────────────
     @Test
     void bajaEliminaElClubYSusDatos() {
