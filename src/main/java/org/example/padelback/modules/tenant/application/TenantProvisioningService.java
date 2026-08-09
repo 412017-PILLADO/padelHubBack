@@ -207,12 +207,12 @@ public class TenantProvisioningService {
         return v == null || v.isBlank() ? null : v.trim();
     }
 
-    /** Normaliza la plantilla a A/B/C (default A ante null o valor desconocido). */
+    /** Normaliza la plantilla a A/B/C/D/E (default A ante null o valor desconocido). */
     private static String normalizePlantilla(String v) {
         if (v == null || v.isBlank()) {
             return DEFAULT_PLANTILLA;
         }
         String up = v.trim().toUpperCase();
-        return up.matches("[ABC]") ? up : DEFAULT_PLANTILLA;
+        return up.matches("[ABCDE]") ? up : DEFAULT_PLANTILLA;
     }
 }

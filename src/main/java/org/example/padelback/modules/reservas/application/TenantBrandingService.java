@@ -43,7 +43,7 @@ public class TenantBrandingService {
         }
         // El secundario es opcional y se puede limpiar: blank/null → null (el front cae al primario).
         t.setColorSecundario(colorSecundario == null || colorSecundario.isBlank() ? null : colorSecundario.trim());
-        // Plantilla: si viene, se normaliza a A/B/C (validada por @Pattern en el request); si no, se deja.
+        // Plantilla: si viene, se normaliza a A/B/C/D/E (validada por @Pattern en el request); si no, se deja.
         if (plantilla != null && !plantilla.isBlank()) {
             t.setPlantilla(plantilla.trim().toUpperCase());
         }

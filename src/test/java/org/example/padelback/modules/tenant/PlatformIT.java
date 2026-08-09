@@ -212,4 +212,30 @@ class PlatformIT extends IntegrationTestBase {
                 Map.of("colorPrimario", "#2747ff", "plantilla", "Z"), ownerHeaders(), String.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void ownerPuedeElegirLasPlantillasNuevas() {
+        try {
+            Map<String, Object> body = new HashMap<>();
+            body.put("colorPrimario", "#0a8a99");
+            body.put("plantilla", "E");
+            ResponseEntity<Map> resp = exchange(HttpMethod.PUT, "/api/v1/agenda/marca", body, ownerHeaders(), Map.class);
+            assertThat(resp.getStatusCode().value()).isEqualTo(200);
+            assertThat(resp.getBody().get("plantilla")).isEqualTo("E");
+        } finally {
+            // Dejar demo como estaba (plantilla A) para no afectar otras clases IT.
+            exchange(HttpMethod.PUT, "/api/v1/agenda/marca",
+                    Map.of("colorPrimario", "#2747ff", "plantilla", "A"), ownerHeaders(), String.class);
+        }
+    }
+
+    @Test
+    void rechazaUnaPlantillaInexistente() {
+        Map<String, Object> body = new HashMap<>();
+        body.put("colorPrimario", "#0a8a99");
+        body.put("plantilla", "F");
+        ResponseEntity<String> resp = exchange(HttpMethod.PUT, "/api/v1/agenda/marca", body, ownerHeaders(), String.class);
+        assertThat(resp.getStatusCode().value()).isEqualTo(400);
+    }
 }
