@@ -49,7 +49,7 @@ public class TenantJpaEntity {
     @Column(name = "color_secundario", length = 20)
     private String colorSecundario;
 
-    /** Plantilla de landing: A (poster), B (hero centrado), C (compacta tipo app). */
+    /** Plantilla de landing: A (poster), B (hero centrado), C (compacta tipo app), D, E. */
     @Column(nullable = false, length = 1)
     private String plantilla;
 

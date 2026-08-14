@@ -11,7 +11,7 @@ public record MarcaRequest(
         @Pattern(regexp = "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$",
                 message = "El color secundario debe ser un hex como #2747ff")
         String colorSecundario,
-        @Pattern(regexp = "^[A-Ca-c]$", message = "La plantilla debe ser A, B o C")
+        @Pattern(regexp = "^[A-Ea-e]$", message = "La plantilla debe ser A, B, C, D o E")
         String plantilla,
         @Size(max = 80)
         String fuente) {}
