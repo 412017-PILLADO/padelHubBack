@@ -32,7 +32,16 @@ public class TenantProvisioningService {
     private static final String BY = "provision";
     private static final String DEFAULT_COLOR = "#0a8a99";
     private static final String DEFAULT_FUENTE = "Hanken Grotesk";
-    private static final String DEFAULT_PLANTILLA = "A";
+    /**
+     * La plantilla de un club que no eligió ninguna. Es 'C' desde el 2026-08-16 (antes 'A'): decisión
+     * de producto, C es la sobria y le sirve al club que no quiere elegir.
+     *
+     * Acá es donde la decisión llega de verdad a un club nuevo. Mientras esto decía 'A', el front
+     * dibujaba C ante un valor vacío pero el alta NUNCA dejaba uno vacío: estampaba 'A' explícito, y
+     * la default de producto no le tocaba a nadie. La {@code V18} le escribió 'A' a los clubes que ya
+     * existían justamente para que este cambio alcance sólo a los nuevos.
+     */
+    private static final String DEFAULT_PLANTILLA = "C";
 
     /** Hostname simple: letras/números/guiones por segmento, segmentos separados por punto. Sin
      * esquema ({@code http://}), sin espacios, sin barras. */
@@ -207,7 +216,7 @@ public class TenantProvisioningService {
         return v == null || v.isBlank() ? null : v.trim();
     }
 
-    /** Normaliza la plantilla a A/B/C/D/E (default A ante null o valor desconocido). */
+    /** Normaliza la plantilla a A/B/C/D/E ({@link #DEFAULT_PLANTILLA} ante null o valor desconocido). */
     private static String normalizePlantilla(String v) {
         if (v == null || v.isBlank()) {
             return DEFAULT_PLANTILLA;

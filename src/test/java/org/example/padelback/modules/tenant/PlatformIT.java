@@ -119,9 +119,23 @@ class PlatformIT extends IntegrationTestBase {
     }
 
     @Test
-    void plantillaInvalidaEnAltaCaeADefaultA() {
-        crearClub("itdefault", "Z"); // 'Z' no es A/B/C → el provisioning la normaliza a 'A'
-        assertThat(configDe("itdefault")).contains("\"plantilla\":\"A\"");
+    void plantillaInvalidaEnAltaCaeALaDefault() {
+        crearClub("itdefault", "Z"); // 'Z' no es A/B/C/D/E → el provisioning la normaliza a la default
+        assertThat(configDe("itdefault")).contains("\"plantilla\":\"C\"");
+    }
+
+    /**
+     * La puerta de la default de producto, y es distinta de la de arriba: un club que no manda
+     * plantilla es el caso REAL del alta, mientras que mandar 'Z' es un cliente roto.
+     *
+     * Existe porque la default vivía escrita en dos lados que se contradecían: el front dibujaba C
+     * ante un valor desconocido, pero el alta estampaba 'A' explícito y entonces ningún club nuevo
+     * salía nunca en C. Si alguien vuelve {@code DEFAULT_PLANTILLA} a 'A', esto se pone rojo.
+     */
+    @Test
+    void altaSinPlantillaSaleEnLaDefaultDelProducto() {
+        crearClub("itsindefault", null);
+        assertThat(configDe("itsindefault")).contains("\"plantilla\":\"C\"");
     }
 
     @Test
