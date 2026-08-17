@@ -24,7 +24,16 @@ spring:
       minimum-idle: ${DB_POOL_MIN_IDLE:5}
   flyway:
     enabled: true
-    locations: classpath:db/migration
+    # DOS ubicaciones, y la separación es a propósito:
+    #   db/migration → el esquema. Va en TODOS los entornos, prod incluido.
+    #   db/seed      → el club de demostración (V2). Son datos de fixture: un complejo "Padel Hub
+    #                  Demo" en Av. Siempre Viva, tres canchas y los hosts `localhost` /
+    #                  `demo.localhost`. Útil en dev y necesario para los tests e2e/IT, que reservan
+    #                  contra ese club.
+    # `application-prod.yml` deja SOLO db/migration, así una base productiva arranca vacía y el
+    # primer club se da de alta por /plataforma, que es como está pensado el producto. Antes esto
+    # era una sola carpeta: la V2 corría también en prod y le instalaba a un cliente un club falso.
+    locations: classpath:db/migration,classpath:db/seed
   jackson:
     time-zone: UTC
   jpa:
