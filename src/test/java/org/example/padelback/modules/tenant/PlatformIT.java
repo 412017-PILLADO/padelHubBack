@@ -9,11 +9,13 @@ import java.util.Map;
 import org.example.padelback.infrastructure.tenancy.PublicTenantContextFilter;
 import org.example.padelback.support.IntegrationTestBase;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * Plataforma (super-admin): login, guard de {@code /platform/**}, alta/listado/edición/baja de
@@ -26,6 +28,9 @@ class PlatformIT extends IntegrationTestBase {
     private static final String ADMIN_PASSWORD = "superadmin123";
 
     private String platformToken;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     // ── helpers ──────────────────────────────────────────────────────
     @SuppressWarnings("unchecked")
@@ -136,6 +141,36 @@ class PlatformIT extends IntegrationTestBase {
     void altaSinPlantillaSaleEnLaDefaultDelProducto() {
         crearClub("itsindefault", null);
         assertThat(configDe("itsindefault")).contains("\"plantilla\":\"C\"");
+    }
+
+    /**
+     * El DEFAULT de la columna, que es la tercera copia de la default y la única que no se ejerce por
+     * ningún camino de la aplicación: el INSERT de {@code TenantProvisioningService} nombra
+     * {@code plantilla} siempre, así que MySQL nunca llega a aplicarlo.
+     *
+     * <p>Por eso el test inserta a mano, sin nombrar la columna: es la única forma de ejercer el
+     * default y la forma exacta en que un camino futuro —un script de carga, un seed, una migración de
+     * datos— le pediría una plantilla a la base. Mientras la columna decía 'A' (V10) y el producto
+     * decía C, ese club hubiera nacido en A en silencio. La {@code V19} las puso de acuerdo.
+     *
+     * <p>Inserta y borra dentro del test: no puede usar los endpoints de plataforma porque justamente
+     * lo que prueba es el camino que NO pasa por ellos.
+     */
+    @Test
+    void elDefaultDeLaColumnaAcompanaALaDefaultDelProducto() {
+        String slug = "itcoldefault";
+        jdbc.update("INSERT INTO tenants (slug, name, status, mostrar_precios, requiere_telefono, "
+                + "created_at, updated_at) VALUES (?,?,?,?,?,NOW(),NOW())",
+                slug, "Club " + slug, "ACTIVE", true, true);
+        try {
+            String plantilla = jdbc.queryForObject(
+                    "SELECT plantilla FROM tenants WHERE slug = ?", String.class, slug);
+            assertThat(plantilla)
+                    .as("el default de la columna quedó desalineado con la default de producto")
+                    .isEqualTo("C");
+        } finally {
+            jdbc.update("DELETE FROM tenants WHERE slug = ?", slug);
+        }
     }
 
     @Test

@@ -1,0 +1,19 @@
+-- =====================================================================
+-- El DEFAULT de la columna sigue a la default de producto: 'A' -> 'C'.
+--
+-- La V10 creo `plantilla` como NOT NULL DEFAULT 'A' cuando A era la plantilla por defecto. El
+-- 2026-08-16 la default paso a C (spec de la plantilla C basica) y se movio en los dos lugares que
+-- se ejecutan: `PLANTILLA_DEFAULT` en el front y `DEFAULT_PLANTILLA` en TenantProvisioningService.
+-- El default de la COLUMNA quedo en 'A' y contradecia a los otros dos.
+--
+-- Hoy esta dormido: el INSERT de TenantProvisioningService nombra `plantilla` explicitamente, asi
+-- que MySQL nunca llega a aplicarlo. Por eso esto NO cambia el comportamiento de ningun alta, y por
+-- eso mismo es una trampa: el dia que aparezca otro camino que inserte un tenant sin nombrar la
+-- columna -un script de carga, un seed, una migracion de datos- ese club nacerria en A sin que nadie
+-- lo haya decidido, y en silencio.
+--
+-- NO toca ninguna fila: cambiar el default de una columna no reescribe los datos existentes. Los
+-- clubes que ya estan siguen con la plantilla que tienen, incluida la 'A' explicita que les escribio
+-- la V18 justamente para que el cambio de default no les tocara la pagina.
+-- =====================================================================
+ALTER TABLE tenants ALTER COLUMN plantilla SET DEFAULT 'C';
