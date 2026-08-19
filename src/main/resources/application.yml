@@ -56,6 +56,11 @@ management:
         enabled: true
 
 padel:
+  # Dominio base del producto (ej. padel-hub.com.ar). Lo usa el endpoint que autoriza la emisión
+  # de certificados TLS a demanda (TlsAskController): con esto, un subdominio vale si su primer
+  # segmento es el slug de un club activo. Vacío = sólo valen los hosts de tenant_dominios.
+  public:
+    base-domain: ${PADEL_PUBLIC_BASE_DOMAIN:}
   # Zona horaria del negocio (reglas de "ahora" de pared, p. ej. no reservar un horario pasado).
   zona-negocio: ${PADEL_ZONA_NEGOCIO:America/Argentina/Cordoba}
   # Retención de reservas: el job de purga borra las que terminaron hace más de estos días.

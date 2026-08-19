@@ -34,3 +34,6 @@ build/
 
 # Secretos de dev (importado por application.yml via spring.config.import)
 local-secrets.yml
+
+# Secretos de produccion: el .env real nunca va al repo (la plantilla .env.example si).
+deploy/.env
