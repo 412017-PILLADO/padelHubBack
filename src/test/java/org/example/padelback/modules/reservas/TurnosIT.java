@@ -56,6 +56,50 @@ class TurnosIT extends IntegrationTestBase {
         assertThat(body).doesNotContain("horaInicio").doesNotContain("horaFin");
     }
 
+    /**
+     * El panel arma la grilla ubicando cada turno en la columna de SU cancha. Sin {@code canchaId}
+     * tenía que hacerlo por nombre, que no identifica nada: dos canchas homónimas caen en la misma
+     * columna y una cancha dada de baja deja de tener nombre resoluble.
+     */
+    @Test
+    void listadoTraeElIdDeLaCancha() {
+        crearReserva("12:30", "Cliente ConIdDeCancha");
+
+        assertThat(turnos()).contains("\"canchaId\":1");
+    }
+
+    /**
+     * Baja de cancha con reservas ya hechas: es soft-delete justamente para no perderlas, así que el
+     * panel las tiene que seguir mostrando CON el nombre de su cancha. Antes el listado resolvía
+     * nombres mirando sólo canchas activas y esos turnos salían con la cancha en "—".
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void turnoDeUnaCanchaDadaDeBajaConservaSuNombre() {
+        Map<String, Object> alta = Map.of(
+                "nombre", "Cancha Con Historia", "techada", true, "tipoPared", "CRISTAL", "precioHora", 5000);
+        ResponseEntity<Map> creada = exchange(
+                HttpMethod.POST, "/api/v1/agenda/canchas", alta, ownerHeaders(), Map.class);
+        assertThat(creada.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        Long canchaId = ((Number) creada.getBody().get("id")).longValue();
+
+        Map<String, Object> reserva = new HashMap<>();
+        reserva.put("canchaId", canchaId);
+        reserva.put("fecha", fecha);
+        reserva.put("hora", "14:00");
+        reserva.put("duracion", 60);
+        reserva.put("clienteNombre", "Cliente De Cancha Baja");
+        ResponseEntity<Map> resp = exchange(
+                HttpMethod.POST, "/api/v1/turnos", reserva, ownerHeaders(), Map.class);
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        exchange(HttpMethod.DELETE, "/api/v1/agenda/canchas/" + canchaId, null, ownerHeaders(), Void.class);
+
+        String body = turnos();
+        assertThat(body).contains("Cliente De Cancha Baja");
+        assertThat(body).contains("Cancha Con Historia");
+    }
+
     @Test
     void cancelarSacaElTurnoDelListado() {
         String cliente = "Cliente Cancelable";

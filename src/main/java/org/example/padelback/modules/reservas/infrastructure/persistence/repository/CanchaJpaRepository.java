@@ -19,6 +19,12 @@ public interface CanchaJpaRepository extends JpaRepository<CanchaJpaEntity, Long
     /** Todas las canchas activas del tenant (para resolver nombres en el panel de turnos). */
     List<CanchaJpaEntity> findByTenantIdAndActiveTrue(Long tenantId);
 
+    /**
+     * Todas las canchas del tenant, incluidas las dadas de baja (soft-delete). Sólo para resolver el
+     * nombre de la cancha de una reserva vieja: para ofrecer canchas usá siempre las activas.
+     */
+    List<CanchaJpaEntity> findByTenantId(Long tenantId);
+
     Optional<CanchaJpaEntity> findByTenantIdAndIdAndActiveTrue(Long tenantId, Long id);
 
     /** Lock pesimista para anti-doble-reserva: serializa las reservas concurrentes sobre la cancha. */

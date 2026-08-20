@@ -115,7 +115,7 @@ public class TurnosController {
 
     private TurnoResponse toResponse(TurnoDelDia t) {
         return new TurnoResponse(t.id(), t.inicio().format(HORA), t.fin().format(HORA), t.clienteNombre(),
-                t.clienteWhatsapp(), t.canchaNombre(), t.duracionMinutos(), t.estado());
+                t.clienteWhatsapp(), t.canchaId(), t.canchaNombre(), t.duracionMinutos(), t.estado());
     }
 
     private PendienteResponse toPendiente(PendienteDeSena p) {
