@@ -1,0 +1,75 @@
+# Caddy: lo único que mira a internet. Todo lo demás (front, back, MySQL) vive en la red interna de
+# Docker y no tiene puertos publicados.
+#
+# HTTPS: no hay una sola línea de certificados acá abajo. Caddy los pide a Let's Encrypt solo, los
+# instala y los renueva. Lo único imprescindible es que el volumen `caddy-data` persista: ahí guarda
+# las claves de cuenta y los certificados. Si lo borrás, vuelve a pedir todo y Let's Encrypt tiene
+# límite de emisiones por semana.
+
+{
+	email {$ACME_EMAIL}
+
+	# TLS a demanda: los clubes son subdominios que aparecen con el tiempo, y no se puede pedir un
+	# certificado por adelantado para un nombre que todavía no existe. Con esto, la PRIMERA visita a
+	# `club-nuevo.padel-hub.com.ar` dispara la emisión y las siguientes ya la encuentran hecha.
+	#
+	# El `ask` no es opcional: sin él, cualquiera que apunte su dominio a este IP haría que Caddy le
+	# emita un certificado, y eso agota el límite de Let's Encrypt en horas. El endpoint responde
+	# 200 sólo si el host corresponde a un club existente.
+	on_demand_tls {
+		ask http://back:8080/public/tenant/existe
+	}
+}
+
+# ── Apex: la landing de venta de Padel-HUB ──
+padel-hub.com.ar, www.padel-hub.com.ar {
+	import padel_stack
+}
+
+# ── Cada club en su subdominio ──
+*.padel-hub.com.ar {
+	tls {
+		on_demand
+	}
+	import padel_stack
+}
+
+# El reparto es el mismo para el apex y para los clubes: lo que cambia es qué dibuja el front, y eso
+# lo decide él según el Host que le llega.
+(padel_stack) {
+	encode gzip zstd
+
+	# El backend contesta sólo sus tres prefijos. El resto es del front.
+	handle /api/* {
+		reverse_proxy back:8080
+	}
+	handle /public/* {
+		reverse_proxy back:8080
+	}
+	handle /platform/* {
+		reverse_proxy back:8080
+	}
+	handle {
+		reverse_proxy front:4000
+	}
+
+	header {
+		# HSTS: una vez que el navegador ve esto, no vuelve a intentar http:// para este dominio.
+		# `preload` queda afuera a propósito: es difícil de revertir si algún día hace falta.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		# El navegador respeta el Content-Type declarado en vez de adivinar por el contenido.
+		X-Content-Type-Options "nosniff"
+		# Nadie puede meter el sitio en un <iframe> ajeno (clickjacking sobre el panel del dueño).
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# El server no anuncia con qué está hecho.
+		-Server
+	}
+
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 20mb
+			roll_keep 5
+		}
+	}
+}

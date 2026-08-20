@@ -1,0 +1,19 @@
+# Perfil de producción. Se activa con SPRING_PROFILES_ACTIVE=prod.
+#
+# Casi toda la configuración de prod entra por variables de entorno (ver DEPLOY.md); acá va sólo lo
+# que NO puede quedar en manos de una variable, porque olvidarla tendría consecuencias silenciosas.
+spring:
+  flyway:
+    # SIN `classpath:db/seed`: la base productiva arranca vacía, sin el club de demostración.
+    #
+    # El default de `application.yml` incluye la carpeta de seed porque dev y los tests la necesitan
+    # (los e2e reservan contra el club `demo`). En prod ese club sería un complejo falso —"Av.
+    # Siempre Viva 742"— alcanzable desde afuera por el header X-Tenant, y encima el OwnerSeeder le
+    # engancharía una cuenta de dueño: busca el tenant cuyo dominio es `localhost`, que es
+    # justamente el que crea la V2.
+    #
+    # Con la base limpia, ese `findByHost("localhost")` no encuentra nada y no siembra ningún owner
+    # —correcto: en prod los clubes se dan de alta por /plataforma, que crea su propio OWNER—. La
+    # que SÍ hace falta en prod es PADEL_PLATFORM_ADMIN_PASSWORD, sin la cual no hay super-admin con
+    # el que entrar al panel.
+    locations: classpath:db/migration

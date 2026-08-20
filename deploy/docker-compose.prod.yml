@@ -1,0 +1,103 @@
+# Stack de producción de Padel Hub. Cuatro contenedores en una red interna; el único que ve internet
+# es Caddy.
+#
+# DÓNDE SE PARA: este archivo asume que los dos repos están clonados uno al lado del otro, tal como
+# se trabajan en local:
+#
+#   /opt/padel-hub/
+#     ├── padelBack/    ← este repo (el compose vive en padelBack/deploy)
+#     └── padelFront/
+#
+# Se levanta desde padelBack/deploy:
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# NINGÚN servicio salvo Caddy publica puertos. MySQL no es alcanzable desde afuera del server, y eso
+# es a propósito: la base no tiene por qué estar expuesta a internet ni un minuto.
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?falta MYSQL_ROOT_PASSWORD en .env}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-padeldb}
+      MYSQL_USER: ${MYSQL_USER:-padel}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?falta MYSQL_PASSWORD en .env}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      # El back espera a que esto pase: sin el healthcheck arrancaría antes de que MySQL acepte
+      # conexiones y Flyway fallaría en el primer arranque.
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  back:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      PORT: 8080
+      DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-padeldb}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DB_USERNAME: ${MYSQL_USER:-padel}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      PADEL_JWT_SECRET: ${PADEL_JWT_SECRET:?falta PADEL_JWT_SECRET en .env}
+      PADEL_PLATFORM_ADMIN_EMAIL: ${PADEL_PLATFORM_ADMIN_EMAIL:-admin@padelhub.com}
+      PADEL_PLATFORM_ADMIN_PASSWORD: ${PADEL_PLATFORM_ADMIN_PASSWORD:?falta PADEL_PLATFORM_ADMIN_PASSWORD en .env}
+      PADEL_PUBLIC_BASE_DOMAIN: ${BASE_DOMAIN:?falta BASE_DOMAIN en .env}
+      # OBLIGATORIO acá: detrás de Caddy, todas las visitas llegan con la IP del proxy. Sin esto el
+      # anti-abuso las cuenta como una sola persona y el primero que reserve tres veces le corta el
+      # turno a todos los demás.
+      PADEL_TRUST_PROXY: "true"
+      PADEL_ZONA_NEGOCIO: ${PADEL_ZONA_NEGOCIO:-America/Argentina/Cordoba}
+      # Mercado Pago: vacías = módulo de pagos apagado, la app funciona igual con señas por
+      # transferencia. Ver DEPLOY.md para prenderlo.
+      PADEL_CRYPTO_KEY: ${PADEL_CRYPTO_KEY:-}
+      PADEL_MP_CLIENT_ID: ${PADEL_MP_CLIENT_ID:-}
+      PADEL_MP_CLIENT_SECRET: ${PADEL_MP_CLIENT_SECRET:-}
+      PADEL_MP_REDIRECT_URI: ${PADEL_MP_REDIRECT_URI:-}
+      PADEL_MP_WEBHOOK_BASE_URL: ${PADEL_MP_WEBHOOK_BASE_URL:-}
+
+  front:
+    build:
+      context: ../../padelFront
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: 4000
+    depends_on:
+      - back
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      # QUIC/HTTP3. Si el firewall de DonWeb no lo permite, se puede sacar sin romper nada.
+      - "443:443/udp"
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?falta ACME_EMAIL en .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # `caddy-data` guarda los CERTIFICADOS y las claves de cuenta de Let's Encrypt. Es el volumen
+      # que no hay que borrar: sin él, Caddy vuelve a pedir todo y Let's Encrypt tiene cuota semanal.
+      - caddy-data:/data
+      - caddy-config:/config
+      - caddy-logs:/var/log/caddy
+    depends_on:
+      - front
+      - back
+
+volumes:
+  mysql-data:
+  caddy-data:
+  caddy-config:
+  caddy-logs:

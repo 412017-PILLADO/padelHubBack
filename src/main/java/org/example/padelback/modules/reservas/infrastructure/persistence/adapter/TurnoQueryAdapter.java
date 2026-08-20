@@ -44,6 +44,7 @@ public class TurnoQueryAdapter implements TurnoQueryPort {
                 .stream()
                 .map(r -> new TurnoDelDia(
                         r.getId(), r.getInicio(), r.getFin(), r.getClienteNombre(), r.getClienteWhatsapp(),
+                        r.getCanchaId(),
                         canchas.getOrDefault(r.getCanchaId(), "—"),
                         r.getDuracionMinutos(),
                         r.getEstado().name()))
@@ -67,8 +68,13 @@ public class TurnoQueryAdapter implements TurnoQueryPort {
                 .toList();
     }
 
+    /**
+     * Nombres de TODAS las canchas del tenant, eliminadas incluidas. La baja de una cancha es
+     * soft-delete y no toca las reservas ya hechas: si acá filtráramos por {@code active=true}, esos
+     * turnos —que el club igual tiene que jugar— aparecerían en el panel con la cancha en "—".
+     */
     private Map<Long, String> nombresDeCanchas(Long tenantId) {
-        return canchaRepo.findByTenantIdAndActiveTrue(tenantId).stream()
+        return canchaRepo.findByTenantId(tenantId).stream()
                 .collect(Collectors.toMap(CanchaJpaEntity::getId, CanchaJpaEntity::getNombre));
     }
 }
