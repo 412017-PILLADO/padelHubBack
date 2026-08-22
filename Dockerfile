@@ -4,7 +4,9 @@ WORKDIR /app
 COPY pom.xml .
 COPY .mvn .mvn
 COPY mvnw .
-RUN ./mvnw -q -B dependency:go-offline
+# El chmod es cinturón y tiradores sobre el modo que git ya guarda: un ZIP descargado de GitHub
+# pierde los permisos, y ahí `./mvnw` moriría con "Permission denied" (exit 126) a mitad del build.
+RUN chmod +x mvnw && ./mvnw -q -B dependency:go-offline
 COPY src src
 # Tests se corren aparte (necesitan Docker/Testcontainers); el build de imagen los saltea.
 RUN ./mvnw -q -B -DskipTests package
