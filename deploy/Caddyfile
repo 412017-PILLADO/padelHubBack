@@ -21,21 +21,9 @@
 	}
 }
 
-# ── Apex: la landing de venta de Padel-HUB ──
-padel-hub.com.ar, www.padel-hub.com.ar {
-	import padel_stack
-}
-
-# ── Cada club en su subdominio ──
-*.padel-hub.com.ar {
-	tls {
-		on_demand
-	}
-	import padel_stack
-}
-
-# El reparto es el mismo para el apex y para los clubes: lo que cambia es qué dibuja el front, y eso
-# lo decide él según el Host que le llega.
+# El snippet va ANTES de los sitios que lo importan: el Caddyfile resuelve cada `import` mientras
+# parsea, asi que un snippet definido mas abajo todavia no existe y Caddy lo busca como ARCHIVO
+# ("File to import not found: padel_stack"), sale con codigo 1 y el contenedor entra en loop.
 (padel_stack) {
 	encode gzip zstd
 
@@ -73,3 +61,17 @@ padel-hub.com.ar, www.padel-hub.com.ar {
 		}
 	}
 }
+
+# ── Apex: la landing de venta de Padel-HUB ──
+padel-hub.com.ar, www.padel-hub.com.ar {
+	import padel_stack
+}
+
+# ── Cada club en su subdominio ──
+*.padel-hub.com.ar {
+	tls {
+		on_demand
+	}
+	import padel_stack
+}
+
