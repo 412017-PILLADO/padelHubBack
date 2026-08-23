@@ -84,6 +84,13 @@ services:
       # 400, o sea que hoy degrada en silencio y mañana rompe.
       # El apex va explícito: `*.dominio` cubre los clubes pero NO `dominio` a secas.
       NG_ALLOWED_HOSTS: ${BASE_DOMAIN:?falta BASE_DOMAIN en .env},*.${BASE_DOMAIN}
+      # Angular ignora las cabeceras X-Forwarded-* que no declare confiables, y con Caddy adelante
+      # eso NO es inocuo: recibirlas sin permitirlas lo manda al fallback de renderizado en cliente,
+      # con el mismo sintoma que NG_ALLOWED_HOSTS mal puesta. Medido: sin estas cabeceras el front
+      # sirve la landing del club; con ellas y sin esta variable, sirve marketing.
+      # Se listan las tres explicitas en vez de un `true`: sólo se confia en lo que Caddy realmente
+      # escribe, y Caddy las reescribe en cada request, asi que un cliente no puede falsearlas.
+      NG_TRUST_PROXY_HEADERS: x-forwarded-host,x-forwarded-proto,x-forwarded-for
     depends_on:
       - back
 
