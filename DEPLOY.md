@@ -38,7 +38,8 @@ docker run -p 8080:8080 --env-file padelBack/.env padel-back
 | `padel.platform.admin-key` | — | Opcional: clave fija para pegarle a `/platform/**` con `X-Platform-Key` desde scripts/CI, sin pasar por login. No usar en vez del JWT del panel; solo para automatización. |
 | `PADEL_ZONA_NEGOCIO` | `America/Argentina/Cordoba` | Zona horaria de negocio (horarios, reservas, reportes). |
 | `PADEL_TRUST_PROXY` | `false` | Poné `true` si hay un proxy/CDN delante que setea `X-Forwarded-For`; si no, el rate-limit por IP usaría siempre la IP del proxy. |
-| `SPRING_PROFILES_ACTIVE` | — | Poné `prod` en producción. |
+| `PADEL_CORS_ALLOWED_ORIGIN_PATTERNS` | `http://localhost:*,http://*.localhost:*` | **Obligatoria en prod.** El default es de dev: si no la ponés, el back rechaza con 403 `Invalid CORS request` todo POST/PUT/DELETE que venga de un navegador. Poné el apex Y el comodín: `https://tuapp.com,https://*.tuapp.com` — el patrón con asterisco no cubre el apex, y ahí vive el panel de plataforma. |
+| `SPRING_PROFILES_ACTIVE` | — | Poné `prod` en producción. Además de Flyway, activa `server.forward-headers-strategy=FRAMEWORK`, sin la cual Spring no se entera de que el TLS lo terminó el proxy. |
 
 Flyway aplica el schema en el primer arranque. **En prod la base queda vacía**: el club de
 demostración vive en una ubicación aparte (`db/seed`) que sólo cargan dev y los tests, así que a un

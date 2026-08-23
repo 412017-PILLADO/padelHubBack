@@ -52,6 +52,11 @@ services:
       PADEL_PLATFORM_ADMIN_EMAIL: ${PADEL_PLATFORM_ADMIN_EMAIL:-admin@padelhub.com}
       PADEL_PLATFORM_ADMIN_PASSWORD: ${PADEL_PLATFORM_ADMIN_PASSWORD:?falta PADEL_PLATFORM_ADMIN_PASSWORD en .env}
       PADEL_PUBLIC_BASE_DOMAIN: ${BASE_DOMAIN:?falta BASE_DOMAIN en .env}
+      # Sin esto quedaba el default de DESARROLLO del SecurityConfig (localhost), y cualquier
+      # request que Spring clasifique como cross-origin se rechaza con 403 "Invalid CORS request".
+      # El apex va explícito: el patrón con asterisco cubre los subdominios de los clubes pero NO
+      # `https://padel-hub.com.ar`, que es justo donde vive el panel de plataforma.
+      PADEL_CORS_ALLOWED_ORIGIN_PATTERNS: https://${BASE_DOMAIN},https://*.${BASE_DOMAIN}
       # OBLIGATORIO acá: detrás de Caddy, todas las visitas llegan con la IP del proxy. Sin esto el
       # anti-abuso las cuenta como una sola persona y el primero que reserve tres veces le corta el
       # turno a todos los demás.

@@ -17,3 +17,15 @@ spring:
     # que SÍ hace falta en prod es PADEL_PLATFORM_ADMIN_PASSWORD, sin la cual no hay super-admin con
     # el que entrar al panel.
     locations: classpath:db/migration
+
+server:
+  # Detrás de Caddy el back recibe HTTP plano: el TLS lo termina el proxy. Sin esto Spring arma la
+  # URL de la request como `http://…` y la compara contra el `Origin: https://…` que manda el
+  # navegador; difieren en el esquema, así que una request DEL MISMO ORIGEN se clasifica como
+  # cross-origin, se valida contra los patrones de CORS y se rechaza con 403 "Invalid CORS request".
+  # Eso volteaba todo POST/PUT/DELETE hecho desde un navegador: el login de /plataforma y también
+  # cualquier reserva pública.
+  #
+  # Honrar X-Forwarded-* sólo es seguro detrás de un proxy de confianza, y acá lo es: Caddy es el
+  # único que mira a internet y reescribe esas cabeceras en cada request.
+  forward-headers-strategy: FRAMEWORK
