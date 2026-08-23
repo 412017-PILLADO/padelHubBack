@@ -27,16 +27,26 @@ ARCHIVO="$DESTINO/padeldb-$(date +%Y%m%d-%H%M%S).sql.gz"
 
 # --single-transaction: toma una foto consistente SIN bloquear las tablas, así un backup a las 4 AM
 # no le corta una reserva a alguien que esté sacando turno a esa hora.
+# --no-tablespaces: MySQL 8 le pide el privilegio PROCESS a mysqldump para volcar info de
+# tablespaces, y el usuario de la app no lo tiene ni debería. Sin esta opción el dump igual se
+# completa, pero escupe un "Access denied ... PROCESS" que ensucia el log del cron todas las
+# noches — y un error que se ve siempre es un error que se deja de leer.
 docker compose -f "$DEPLOY_DIR/docker-compose.prod.yml" exec -T mysql \
-	mysqldump --single-transaction --quick \
+	mysqldump --single-transaction --quick --no-tablespaces \
 	-u"${MYSQL_USER:-padel}" -p"${MYSQL_PASSWORD}" "${MYSQL_DATABASE:-padeldb}" \
 	| gzip > "$ARCHIVO"
 
-# Si el dump falló a mitad de camino, el .gz queda pero vacío o truncado. Un backup roto que parece
-# backup es peor que no tenerlo: se borra y el comando falla, así el cron lo reporta.
-if [ ! -s "$ARCHIVO" ] || [ "$(stat -c %s "$ARCHIVO")" -lt 1024 ]; then
+# Un backup roto que parece backup es peor que no tenerlo. Y el tamaño NO alcanza para saberlo: un
+# dump cortado a la mitad pesa de sobra. Tampoco sirve el código de salida, porque en
+# `mysqldump | gzip` el que ve `set -e` es el de gzip, que sale bien aunque mysqldump haya muerto.
+#
+# Lo único que prueba que el dump llegó hasta el final es su última línea: mysqldump escribe
+# "-- Dump completed on ..." recién cuando termina. Si no está, el archivo se borra y el comando
+# falla, así el cron lo reporta en vez de dejar una copia inservible que nadie mira hasta que la
+# necesita.
+if [ ! -s "$ARCHIVO" ] || ! gunzip -c "$ARCHIVO" 2>/dev/null | tail -5 | grep -q -- '-- Dump completed'; then
 	rm -f "$ARCHIVO"
-	echo "$(date '+%F %T') ERROR: el dump salió vacío o truncado; no se guardó nada" >&2
+	echo "$(date '+%F %T') ERROR: el dump no llegó a completarse; no se guardó nada" >&2
 	exit 1
 fi
 
