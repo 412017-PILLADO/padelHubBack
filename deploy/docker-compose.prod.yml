@@ -77,6 +77,13 @@ services:
     restart: unless-stopped
     environment:
       PORT: 4000
+      # Angular SSR valida el header Host contra esta lista (protección anti-SSRF). Sin ella
+      # rechaza CADA subdominio de club, cae a renderizado de cliente y sirve la cáscara vacía:
+      # el HTML de todos los clubes sale con el <title> de marketing -malo para SEO y con un
+      # parpadeo hasta que hidrata-. Angular avisa que en una versión futura eso pasa a ser un
+      # 400, o sea que hoy degrada en silencio y mañana rompe.
+      # El apex va explícito: `*.dominio` cubre los clubes pero NO `dominio` a secas.
+      NG_ALLOWED_HOSTS: ${BASE_DOMAIN:?falta BASE_DOMAIN en .env},*.${BASE_DOMAIN}
     depends_on:
       - back
 

@@ -74,6 +74,13 @@ export const environment = {
 };
 ```
 
+El servidor SSR necesita además `NG_ALLOWED_HOSTS` con el apex **y** el comodín
+(`padel-hub.com.ar,*.padel-hub.com.ar`): Angular valida el header `Host` contra esa lista para
+prevenir SSRF, y sin ella rechaza todos los subdominios de club, cae a renderizado de cliente y
+sirve el HTML de marketing para cada uno. Degrada en silencio —la página se ve bien tras hidratar—
+pero rompe el SEO por club, y Angular avisa que en una versión futura pasará a devolver 400. El
+`docker-compose.prod.yml` la deriva de `BASE_DOMAIN`.
+
 ### Multi-tenant por subdominio
 
 El tenant se deriva del subdominio del host: `demo.padel-hub.com.ar → X-Tenant: demo`; el apex
