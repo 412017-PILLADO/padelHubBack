@@ -63,11 +63,19 @@
 }
 
 # ── Apex: la landing de venta de Padel-HUB ──
-padel-hub.com.ar, www.padel-hub.com.ar {
+#
+# `www` NO va acá, y no es un olvido. Este bloque usa el manejo automático de certificados, que los
+# pide al arrancar; el de abajo usa `on_demand`, que los pide en la primera visita. Con www en esta
+# lista, Caddy nunca llegaba a emitir el suyo y en el handshake se quedaba sin nada que presentar
+# (`tls alert internal error`, "no peer certificate available"): una advertencia roja del navegador
+# para cualquiera que tipee www. Dejándolo caer en `*.padel-hub.com.ar` lo saca a demanda como a
+# cualquier club, y el portero ya lo autoriza — TlsAskController permite `www.<dominio base>`
+# explícitamente, igual que el apex.
+padel-hub.com.ar {
 	import padel_stack
 }
 
-# ── Cada club en su subdominio ──
+# ── `www` y cada club en su subdominio ──
 *.padel-hub.com.ar {
 	tls {
 		on_demand
