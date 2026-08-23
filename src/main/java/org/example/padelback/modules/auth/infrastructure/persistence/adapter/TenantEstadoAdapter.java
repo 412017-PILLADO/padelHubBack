@@ -1,7 +1,10 @@
 package org.example.padelback.modules.auth.infrastructure.persistence.adapter;
 
+import java.util.Optional;
+
 import org.example.padelback.modules.auth.domain.port.TenantEstadoPort;
 import org.example.padelback.modules.tenant.domain.model.TenantStatus;
+import org.example.padelback.modules.tenant.infrastructure.persistence.entity.TenantJpaEntity;
 import org.example.padelback.modules.tenant.infrastructure.persistence.repository.TenantJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -20,8 +23,12 @@ public class TenantEstadoAdapter implements TenantEstadoPort {
 
     @Override
     @Transactional(readOnly = true)
-    public boolean estaActivo(Long tenantId) {
-        return tenantId != null
-                && tenantRepo.findById(tenantId).map(t -> t.getStatus() == TenantStatus.ACTIVE).orElse(false);
+    public Optional<String> slugSiActivo(Long tenantId) {
+        if (tenantId == null) {
+            return Optional.empty();
+        }
+        return tenantRepo.findById(tenantId)
+                .filter(t -> t.getStatus() == TenantStatus.ACTIVE)
+                .map(TenantJpaEntity::getSlug);
     }
 }

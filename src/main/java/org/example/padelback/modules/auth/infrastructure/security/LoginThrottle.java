@@ -13,7 +13,10 @@ import org.springframework.web.server.ResponseStatusException;
  * Freno de fuerza bruta para el login de owners ({@code /api/v1/auth/login}), multi-tenant. Combina
  * dos dimensiones (mismo patrón que {@code PlatformLoginThrottle}):
  * <ul>
- *   <li>Por (tenant+email): {@value #MAX_FAILS_CREDENCIAL} fallos → bloquea esa cuenta {@link #LOCK}.
+ *   <li>Por email: {@value #MAX_FAILS_CREDENCIAL} fallos → bloquea esa cuenta {@link #LOCK}. La key
+ *       ya no lleva el tenant porque el login del apex frena ANTES de saber de qué club es el
+ *       email; con el único global sobre {@code usuarios.email} la key por email sola es igual de
+ *       precisa que la vieja.
  *   <li>Por IP: {@value #MAX_FAILS_IP} fallos (probando cualquier cuenta) → bloquea esa IP
  *       {@link #LOCK}, para que alguien no pruebe credenciales contra muchos tenants/emails distintos
  *       desde el mismo origen sin nunca llegar al tope por cuenta.
@@ -36,21 +39,21 @@ public class LoginThrottle {
         Instant lockedUntil;
     }
 
-    /** Lanza 429 si la cuenta (tenant+email) o la IP están bloqueadas. */
-    public void assertNotLocked(Long tenantId, String email, String ip) {
-        checkLocked(porCredencial, credencialKey(tenantId, email));
+    /** Lanza 429 si la cuenta (email) o la IP están bloqueadas. */
+    public void assertNotLocked(String email, String ip) {
+        checkLocked(porCredencial, credencialKey(email));
         checkLocked(porIp, ipKey(ip));
     }
 
     /** Registra un intento fallido en ambas dimensiones; al llegar al tope, bloquea. */
-    public void recordFailure(Long tenantId, String email, String ip) {
-        recordFailureIn(porCredencial, credencialKey(tenantId, email), MAX_FAILS_CREDENCIAL);
+    public void recordFailure(String email, String ip) {
+        recordFailureIn(porCredencial, credencialKey(email), MAX_FAILS_CREDENCIAL);
         recordFailureIn(porIp, ipKey(ip), MAX_FAILS_IP);
     }
 
     /** Limpia el estado de la cuenta tras un login exitoso. */
-    public void recordSuccess(Long tenantId, String email) {
-        porCredencial.remove(credencialKey(tenantId, email));
+    public void recordSuccess(String email) {
+        porCredencial.remove(credencialKey(email));
     }
 
     private void checkLocked(Map<String, Estado> store, String key) {
@@ -81,8 +84,8 @@ public class LoginThrottle {
         }
     }
 
-    private static String credencialKey(Long tenantId, String email) {
-        return tenantId + "|" + (email == null ? "" : email.trim().toLowerCase());
+    private static String credencialKey(String email) {
+        return email == null ? "" : email.trim().toLowerCase();
     }
 
     private static String ipKey(String ip) {

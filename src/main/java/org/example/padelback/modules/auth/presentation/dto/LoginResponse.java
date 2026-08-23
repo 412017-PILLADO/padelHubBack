@@ -1,3 +1,4 @@
 package org.example.padelback.modules.auth.presentation.dto;
 
-public record LoginResponse(String token, long expiresIn) {}
+/** Respuesta del login del apex: a qué club redirigir, y con qué código entrar. */
+public record LoginResponse(String slug, String code) {}

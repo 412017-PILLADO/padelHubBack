@@ -13,7 +13,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -42,13 +41,6 @@ class PlatformIT extends IntegrationTestBase {
             platformToken = (String) resp.getBody().get("token");
         }
         return platformToken;
-    }
-
-    /** Headers JSON pelados (sin tenant): la plataforma no es tenant-scoped. */
-    private HttpHeaders jsonHeaders() {
-        HttpHeaders h = new HttpHeaders();
-        h.setContentType(MediaType.APPLICATION_JSON);
-        return h;
     }
 
     /** Headers de plataforma: Bearer del super-admin, sin X-Tenant. */

@@ -2,7 +2,6 @@ package org.example.padelback.modules.tenant.presentation;
 
 import org.example.padelback.modules.auth.domain.model.UsuarioRol;
 import org.example.padelback.modules.auth.domain.port.TokenIssuerPort;
-import org.example.padelback.modules.auth.presentation.dto.LoginResponse;
 import org.example.padelback.modules.tenant.infrastructure.persistence.PlatformAdminStore;
 import org.example.padelback.modules.tenant.infrastructure.security.PlatformLoginThrottle;
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,8 +33,14 @@ public class PlatformAuthController {
 
     public record PlatformLoginRequest(@NotBlank String email, @NotBlank String password) {}
 
+    /**
+     * Respuesta propia: el login de super-admin no pasa por el apex ni el canje de código, así que
+     * no comparte forma con {@code LoginResponse} del módulo auth (que ahora es {@code slug+code}).
+     */
+    public record PlatformLoginResponse(String token, long expiresIn) {}
+
     @PostMapping("/login")
-    public LoginResponse login(@Valid @RequestBody PlatformLoginRequest req, HttpServletRequest http) {
+    public PlatformLoginResponse login(@Valid @RequestBody PlatformLoginRequest req, HttpServletRequest http) {
         String email = req.email().trim().toLowerCase();
         String ip = http.getRemoteAddr();
         throttle.assertNotLocked(email, ip);
@@ -48,6 +53,6 @@ public class PlatformAuthController {
         }
         throttle.recordSuccess(email, ip);
         String token = tokenIssuer.emitir(null, admin.email(), UsuarioRol.SUPERADMIN);
-        return new LoginResponse(token, tokenIssuer.expiracionMs());
+        return new PlatformLoginResponse(token, tokenIssuer.expiracionMs());
     }
 }

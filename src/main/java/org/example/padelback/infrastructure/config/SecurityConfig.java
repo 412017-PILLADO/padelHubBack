@@ -63,8 +63,9 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/public/**", "/api/v1/auth/login", "/platform/auth/login",
-                                "/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
+                        .requestMatchers("/public/**", "/api/v1/auth/login", "/api/v1/auth/canjear",
+                                "/platform/auth/login", "/actuator/health", "/actuator/health/**",
+                                "/actuator/info").permitAll()
                         .requestMatchers("/api/v1/**").authenticated()
                         // Panel de dev: super-admin (JWT SUPERADMIN o X-Platform-Key vía filtro).
                         .requestMatchers("/platform/**").hasRole("SUPERADMIN")

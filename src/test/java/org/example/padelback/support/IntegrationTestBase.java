@@ -66,12 +66,25 @@ public abstract class IntegrationTestBase {
         }
     }
 
-    /** Login real por HTTP; resuelve el tenant por el header X-Tenant. Devuelve el JWT. */
+    /**
+     * Login real por HTTP, en los dos pasos del apex: `/login` da `{slug, code}` sin necesitar
+     * `X-Tenant`, y `/canjear` cambia el código por el JWT ya parado en el host del club.
+     */
     @SuppressWarnings("unchecked")
     protected String login(String email, String password) {
-        ResponseEntity<Map> resp = exchange(HttpMethod.POST, "/api/v1/auth/login",
-                Map.of("email", email, "password", password), publicHeaders(), Map.class);
-        return (String) resp.getBody().get("token");
+        ResponseEntity<Map> paso1 = exchange(HttpMethod.POST, "/api/v1/auth/login",
+                Map.of("email", email, "password", password), jsonHeaders(), Map.class);
+        String code = (String) paso1.getBody().get("code");
+        ResponseEntity<Map> paso2 = exchange(HttpMethod.POST, "/api/v1/auth/canjear",
+                Map.of("code", code), publicHeaders(), Map.class);
+        return (String) paso2.getBody().get("token");
+    }
+
+    /** Headers sin tenant: el login del apex no lo necesita ni lo mira. */
+    protected HttpHeaders jsonHeaders() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        return headers;
     }
 
     /** Headers de la superficie pública: sólo el slug del tenant. */

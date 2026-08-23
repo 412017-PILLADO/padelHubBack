@@ -51,13 +51,14 @@ public class OwnerSeeder implements CommandLineRunner {
             return; // prod sin PADEL_OWNER_PASSWORD: no se siembra ningún owner.
         }
 
+        String email = ownerEmail.trim().toLowerCase();
         dominioRepo.findByHost("localhost").ifPresent(dom -> {
             Long tenantId = dom.getTenantId();
-            if (usuarioRepo.findByTenantIdAndEmailAndActiveTrue(tenantId, ownerEmail).isEmpty()) {
+            if (usuarioRepo.findByTenantIdAndEmailAndActiveTrue(tenantId, email).isEmpty()) {
                 TenantContext.runAs(tenantId, () -> {
                     UsuarioJpaEntity owner = UsuarioJpaEntity.builder()
                             .tenantId(tenantId)
-                            .email(ownerEmail)
+                            .email(email)
                             .passwordHash(passwordEncoder.encode(password))
                             .rol(UsuarioRol.OWNER)
                             .estado("ACTIVO")
