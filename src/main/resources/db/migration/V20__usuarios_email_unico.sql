@@ -5,6 +5,10 @@
 --
 -- El UPDATE va primero porque hasta ahora convivían dos formas de escribir el mismo email:
 -- TenantProvisioningService normalizaba a minúsculas y OwnerSeeder no.
+--
+-- Ojo: este UPDATE puede chocar contra el único COMPUESTO (tenant_id, email) que ya existe, si un
+-- mismo club tiene 'A@x.com' y 'a@x.com' sembrados por separado — fallaría acá, en el UPDATE, no
+-- en el CREATE UNIQUE INDEX de abajo. El chequeo previo a aplicar esta migración lo detecta.
 UPDATE usuarios SET email = LOWER(TRIM(email));
 
 CREATE UNIQUE INDEX idx_usuarios_email ON usuarios (email);

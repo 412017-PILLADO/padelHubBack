@@ -90,4 +90,43 @@ class LoginUseCaseTest {
         assertThatThrownBy(() -> useCase.ejecutar(null, "padel123"))
                 .isInstanceOf(CredencialesInvalidasException.class);
     }
+
+    @Test
+    void emailInexistente_igualPagaElCostoDeUnBcrypt() {
+        // Sin el hash de descarte, "no existe" no llega a invocar el encoder y responde más rápido
+        // que "contraseña incorrecta" — esa diferencia de latencia es el mismo oráculo que el cuerpo
+        // genérico de la respuesta existe para tapar, sólo que por otro canal.
+        var encoderContado = new EncoderContado(ENCODER);
+        var useCaseConContador = new LoginUseCase(
+                email -> Optional.ofNullable(usuarios.get(email)),
+                encoderContado,
+                tenantId -> Optional.ofNullable(clubesActivos.get(tenantId)),
+                codigos);
+
+        assertThatThrownBy(() -> useCaseConContador.ejecutar("nadie@club.com", "cualquiera"))
+                .isInstanceOf(CredencialesInvalidasException.class);
+
+        assertThat(encoderContado.invocaciones).isEqualTo(1);
+    }
+
+    /** Decorador escrito a mano (nada de Mockito) que cuenta cuántas veces se invoca {@code matches}. */
+    private static final class EncoderContado implements PasswordEncoder {
+        private final PasswordEncoder delegado;
+        private int invocaciones = 0;
+
+        EncoderContado(PasswordEncoder delegado) {
+            this.delegado = delegado;
+        }
+
+        @Override
+        public String encode(CharSequence rawPassword) {
+            return delegado.encode(rawPassword);
+        }
+
+        @Override
+        public boolean matches(CharSequence rawPassword, String encodedPassword) {
+            invocaciones++;
+            return delegado.matches(rawPassword, encodedPassword);
+        }
+    }
 }

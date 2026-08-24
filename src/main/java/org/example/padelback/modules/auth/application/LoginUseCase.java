@@ -28,14 +28,25 @@ public class LoginUseCase {
     private final TenantEstadoPort tenantEstado;
     private final CodigoIngresoStore codigos;
 
+    /**
+     * Hash de descarte para que un email inexistente cueste lo mismo que uno existente: sin esto,
+     * la rama "no existe" no paga el bcrypt y la diferencia de latencia dice qué mails son clientes
+     * de Padel-HUB — el oráculo que el mensaje genérico existe para tapar.
+     */
+    private static final String HASH_DESCARTE =
+            "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+
     public record LoginResult(String slug, String code) {}
 
     public LoginResult ejecutar(String email, String password) {
         if (email == null) {
             throw new CredencialesInvalidasException();
         }
-        UsuarioAuth usuario = usuarioRepo.buscarParaLogin(email.trim().toLowerCase())
-                .orElseThrow(CredencialesInvalidasException::new);
+        UsuarioAuth usuario = usuarioRepo.buscarParaLogin(email.trim().toLowerCase()).orElse(null);
+        if (usuario == null) {
+            passwordEncoder.matches(password, HASH_DESCARTE);
+            throw new CredencialesInvalidasException();
+        }
         if (!passwordEncoder.matches(password, usuario.passwordHash())) {
             throw new CredencialesInvalidasException();
         }

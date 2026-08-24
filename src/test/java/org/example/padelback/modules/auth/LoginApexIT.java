@@ -113,6 +113,19 @@ class LoginApexIT extends IntegrationTestBase {
     }
 
     @Test
+    void unHostQueNoResuelveAningunClub_dan401YQuemaElCodigoIgual() {
+        // Un slug que no nombra ningún club ACTIVE (typo, club dado de baja, header ausente en un
+        // proxy mal configurado) es un fallo de canje más, no un 404: el 404 distinguiría esta
+        // falla de las demás (rompiendo la invariante de respuesta uniforme) y, peor, dejaría el
+        // código sin quemar para reintentar.
+        String code = (String) postLogin(OWNER_EMAIL, OWNER_PASSWORD).getBody().get("code");
+
+        assertThat(postCanje(code, "club-que-no-existe").getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        // Y quedó quemado: ni siquiera con el slug correcto sirve después.
+        assertThat(postCanje(code, TENANT).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
     void emailInexistenteYPasswordIncorrecta_respondenExactamenteLoMismo() {
         // La invariante de §5.4 de la spec: el apex es un buscador global de emails y la diferencia
         // entre "no existe" y "contraseña mala" diría qué mails son clientes de Padel-HUB.

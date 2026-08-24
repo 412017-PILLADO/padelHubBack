@@ -78,6 +78,17 @@ public class TenantProvisioningService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Ya existe un club con ese slug.");
         }
 
+        // El email de owner es único en TODA la plataforma (V20), no por club: sin este chequeo, dar
+        // de alta un club cuyo owner ya pertenece a otro revienta contra ese índice con un 409
+        // genérico de "Conflicto de datos" — correcto pero inútil, justo al lado de los otros dos
+        // chequeos amables de acá. Se normaliza a minúsculas igual que al insertar más abajo.
+        String ownerEmail = in.ownerEmail().trim().toLowerCase();
+        Integer emailUsado = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM usuarios WHERE email = ?", Integer.class, ownerEmail);
+        if (emailUsado != null && emailUsado > 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ya existe un usuario con ese email.");
+        }
+
         // Hosts normalizados (minúsculas, sin blancos). Validamos formato y que estén libres ANTES de
         // crear nada: tenant_dominios.host es único, así que sin este chequeo un host repetido o con
         // formato inválido (ej. con esquema o espacios) daría un 500 crudo o un dato corrupto.

@@ -3,7 +3,6 @@ package org.example.padelback.modules.auth.presentation;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
-import org.example.padelback.domain.exception.TenantNotResolvedException;
 import org.example.padelback.infrastructure.tenancy.PublicTenantContextFilter;
 import org.example.padelback.modules.auth.application.CanjearCodigoUseCase;
 import org.example.padelback.modules.auth.application.LoginUseCase;
@@ -57,12 +56,19 @@ public class AuthController {
     /**
      * Paso 2, ya en el subdominio del club: cambia el código por el JWT. Acá el {@code X-Tenant} SÍ
      * importa — es lo que se compara contra el club del código.
+     *
+     * <p>Un host que no resuelve a ningún club ACTIVE no es un 404: es un fallo de canje más. Si
+     * tiráramos acá, el código quedaría sin quemar (se podría reintentar) y la respuesta (404) se
+     * distinguiría del 401 genérico de las demás fallas — dos formas de romper la invariante de que
+     * todo intento de canje fallido es indistinguible. Por eso se pasa {@code null} como tenant del
+     * host: {@code CanjearCodigoUseCase} consume el código ANTES de comparar, así que se quema
+     * igual, y la comparación contra {@code null} da {@code false} sin explotar.
      */
     @PostMapping("/canjear")
     public CanjeResponse canjear(@Valid @RequestBody CanjeRequest req, HttpServletRequest http) {
         Long tenantId = tenantResolver
                 .resolve(http.getHeader(PublicTenantContextFilter.TENANT_HEADER), http.getServerName())
-                .orElseThrow(() -> new TenantNotResolvedException("Tenant no resuelto para el host"));
+                .orElse(null);
         var result = canjearCodigoUseCase.ejecutar(req.code(), tenantId);
         return new CanjeResponse(result.token(), result.expiresIn());
     }

@@ -1,5 +1,7 @@
 package org.example.padelback.support;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Map;
 
 import org.example.padelback.infrastructure.tenancy.PublicTenantContextFilter;
@@ -9,6 +11,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
@@ -74,6 +77,12 @@ public abstract class IntegrationTestBase {
     protected String login(String email, String password) {
         ResponseEntity<Map> paso1 = exchange(HttpMethod.POST, "/api/v1/auth/login",
                 Map.of("email", email, "password", password), jsonHeaders(), Map.class);
+        // Sin esto, un paso 1 que falla revienta más abajo con un NPE al meter `code` null en el
+        // Map del paso 2, y el rojo resultante no dice nada del motivo real (credenciales mal
+        // sembradas, club inactivo, etc.) — todos los IT que se loguean pasan por acá.
+        assertThat(paso1.getStatusCode())
+                .as("paso 1 del login falló para %s: %s", email, paso1.getBody())
+                .isEqualTo(HttpStatus.OK);
         String code = (String) paso1.getBody().get("code");
         ResponseEntity<Map> paso2 = exchange(HttpMethod.POST, "/api/v1/auth/canjear",
                 Map.of("code", code), publicHeaders(), Map.class);

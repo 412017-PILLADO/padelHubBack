@@ -18,7 +18,14 @@ import org.example.padelback.modules.auth.domain.model.UsuarioRol;
 @Entity
 @Table(
         name = "usuarios",
-        uniqueConstraints = @UniqueConstraint(name = "idx_usuarios_tenant_email", columnNames = {"tenant_id", "email"}),
+        // El compuesto (tenant_id, email) quedó redundante para la unicidad desde la V20 —el email
+        // es único en TODA la plataforma, no por club— pero se conserva como índice (ver el
+        // comentario de esa migración). Sin el segundo `@UniqueConstraint`, quien lea la entidad no
+        // tiene cómo enterarse de que el email es único global.
+        uniqueConstraints = {
+                @UniqueConstraint(name = "idx_usuarios_tenant_email", columnNames = {"tenant_id", "email"}),
+                @UniqueConstraint(name = "idx_usuarios_email", columnNames = {"email"}),
+        },
         indexes = @Index(name = "idx_usuarios_tenant_id", columnList = "tenant_id")
 )
 @SuperBuilder

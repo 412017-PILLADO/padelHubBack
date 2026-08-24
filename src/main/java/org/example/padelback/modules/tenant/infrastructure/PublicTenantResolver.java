@@ -17,7 +17,9 @@ import org.springframework.transaction.annotation.Transactional;
  * por <b>host</b> ({@code tenant_dominios}) para no romper accesos same-origin ni el dev actual.
  *
  * <p>Solo resuelve tenants {@link TenantStatus#ACTIVE}: uno INACTIVE (suspendido/dado de baja
- * lógicamente) no debe servir su landing pública ni dejar loguear a sus owners.
+ * lógicamente) no debe servir su landing pública. La garantía sobre el login de sus owners ya NO
+ * pasa por acá —el paso 2 del canje usa {@code tenantIdDelHost} para comparar, no este resolver
+ * para bloquear— sino por {@code TenantEstadoPort.slugSiActivo}, en el paso 1.
  */
 @Component
 @RequiredArgsConstructor
