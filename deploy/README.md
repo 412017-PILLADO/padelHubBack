@@ -83,6 +83,16 @@ openssl rand -base64 48   # para PADEL_JWT_SECRET
 Las de Mercado Pago dejalas vacías por ahora: sin ellas el módulo de pagos queda apagado y la app
 funciona igual con señas por transferencia.
 
+**`ACME_EMAIL` tiene que ser un mail tuyo de verdad**, no el del ejemplo. El compose sólo verifica
+que la variable exista, así que un placeholder pasa el arranque sin quejarse y los certificados se
+emiten igual — la diferencia aparece el día que una renovación falla: Let's Encrypt avisa por mail
+antes de que el certificado venza, y ese aviso se pierde. Te enterarías por un cliente contando que
+el navegador le muestra una advertencia roja. Para ver con qué cuenta estás emitiendo hoy:
+
+```bash
+docker compose -f docker-compose.prod.yml logs caddy | grep -o '"account_contact":\[[^]]*\]' | tail -1
+```
+
 ## 5. Apuntar el dominio
 
 En el DNS de `padel-hub.com.ar`, dos registros hacia el IP del server:
@@ -176,6 +186,66 @@ cd ../padelBack/deploy && docker compose -f docker-compose.prod.yml up -d --buil
 
 Flyway aplica solo las migraciones nuevas al arrancar. **Hacé un backup antes** si la versión trae
 migraciones que tocan datos.
+
+Ojo con una cosa: `--build` recrea `front` y `back`, pero **no toca a `caddy`** — su imagen no
+cambia. Si el deploy arregla algo de lo que Caddy depende (el portero de certificados, por ejemplo),
+Caddy no se entera hasta que lo reinicies. Ver la sección siguiente.
+
+## Un subdominio no levanta con HTTPS
+
+Síntoma: `algo.padel-hub.com.ar` no abre, el navegador habla de un problema de certificado, y en los
+logs de Caddy **no hay ningún error** — no hay ni un intento de emisión que leer.
+
+La causa casi siempre es la misma. Caddy emite certificados a demanda y antes de cada emisión le
+pregunta al back si ese host corresponde a un club existente (`on_demand_tls ask` en el `Caddyfile`
+→ `/public/tenant/existe`). **Esa respuesta se la guarda.** Si alguien visitó el subdominio *antes*
+de que el club existiera, Caddy preguntó, le dijeron que no, y se lo anotó: cuando después creás el
+club, el portero ya responde que sí pero Caddy nunca vuelve a preguntar. El silencio en el log es
+justamente eso — no hay intento, así que no hay nada que loguear.
+
+Se destraba reiniciando Caddy, que descarta lo que tenía anotado y vuelve a preguntar:
+
+```bash
+cd /opt/padel-hub/padelBack/deploy && docker compose -f docker-compose.prod.yml restart caddy
+```
+
+Es una operación barata y sin riesgo: los certificados y las claves de cuenta viven en el volumen
+`caddy-data`, no en el contenedor, así que no se pierde ni se re-emite nada de lo que ya funciona.
+Después entrá al subdominio y confirmá que la emisión ocurrió:
+
+```bash
+docker compose -f docker-compose.prod.yml logs caddy --since 2m | grep -v http.log.access | grep -iE "obtain|challenge"
+```
+
+Tenés que ver `obtaining certificate` y, unos segundos más tarde, `certificate obtained
+successfully`.
+
+> **Al dar de alta un club, entrá a su subdominio recién después de crearlo.** Visitarlo antes es
+> exactamente lo que deja la negativa anotada, y convierte un alta de dos minutos en media hora de
+> buscar un error que no existe.
+
+**Antes de reiniciar, descartá que sea otra cosa.** Si el portero responde que no, reiniciar no
+arregla nada — el club no existe, está INACTIVE, o el host tiene más de un nivel (ver abajo):
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" "https://padel-hub.com.ar/public/tenant/existe?domain=EL_HOST"
+```
+
+`200` = el portero autoriza y el problema es la caché de Caddy → reiniciá. `404` = el problema está
+en los datos, y reiniciar sólo te hace perder el tiempo.
+
+### Los subdominios son de un solo nivel
+
+`rozapadel.padel-hub.com.ar` funciona; `www.rozapadel.padel-hub.com.ar` **no**, y es a propósito. Las
+tres capas coinciden en la regla: el `Caddyfile` usa `*.padel-hub.com.ar`, que en Caddy matchea una
+sola etiqueta; `TlsAskController` rechaza cualquier slug que contenga un punto; y el front resuelve
+el tenant sólo del primer nivel. El `www` del apex es la única excepción, y está permitida
+explícitamente porque es la landing de venta.
+
+No es una limitación que valga la pena levantar: nadie tipea `www.<club>`, y hacerlo andar
+significaría emitir certificados para hosts de dos niveles que ningún cliente usa. Si algún club
+quiere un dominio propio (`turnos.suclub.com`), el camino es cargarlo en `tenant_dominios` desde el
+panel de plataforma — eso sí está contemplado y el portero lo autoriza.
 
 ## Cuando el disco se llene
 
