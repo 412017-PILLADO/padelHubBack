@@ -176,6 +176,33 @@ scp root@TU_IP:/var/backups/padel-hub/padeldb-*.sql.gz ~/backups-padel/
 
 ---
 
+## Alta de un club — checklist
+
+1. Panel de plataforma (`/plataforma`, con el super-admin) → **"+ Nuevo club"**. Crea tenant,
+   dominios, complejo base, canchas, horarios y el usuario OWNER en una sola transacción.
+2. **Reiniciá Caddy antes de entrar al subdominio del club nuevo, no después:**
+
+   ```bash
+   cd /opt/padel-hub/padelBack/deploy && docker compose -f docker-compose.prod.yml restart caddy
+   ```
+
+   El motivo está en la sección de abajo ("Un subdominio no levanta con HTTPS"), pero la regla
+   corta es: si alguien —vos incluido— visita `slug.padel-hub.com.ar` ANTES de este paso, Caddy le
+   pregunta al back si el club existe, el back todavía dice que no, y esa respuesta queda anotada
+   sin vencimiento. Reiniciar después de crear el club, y antes de la primera visita, evita pisar
+   esa trampa.
+3. Confirmá que el subdominio levanta:
+
+   ```bash
+   curl -sS -o /dev/null -w "%{http_code}\n" --max-time 40 "https://slug-del-club.padel-hub.com.ar"
+   ```
+
+   `200` = listo. Si no, ver "Un subdominio no levanta con HTTPS" más abajo.
+4. Pasale al dueño su email y contraseña. Entra por `https://padel-hub.com.ar` → "Ingresar" — el
+   login es uno solo para todos los clubes, no hay URL de login por subdominio.
+
+---
+
 ## Actualizar a una versión nueva
 
 ```bash
